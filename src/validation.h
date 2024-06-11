@@ -1,7 +1,7 @@
 #pragma once
 #include "vulkan/vulkan_core.h"
 #include <vulkan/vulkan.h>
-#include "vkapp.h" 
+#include "vkdecl.h" 
 
 class DebugMessenger {
 public:
@@ -14,13 +14,16 @@ public:
     VkDebugUtilsMessengerCreateInfoEXT _crtInfo{};
     VulkanData _vkdata;
 
-    VKAPI_ATTR VkBool32 (*_pCallback)(VkDebugUtilsMessageSeverityFlagBitsEXT,
+ 
+    static VKAPI_ATTR VkBool32 VKAPI_CALL _defaultCallback(
+	        VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+	        VkDebugUtilsMessageTypeFlagsEXT messageType,
+	        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,void* usrDataCallback);
+
+    VKAPI_ATTR VkBool32 (*_pCallback)
+        (VkDebugUtilsMessageSeverityFlagBitsEXT,
                                       VkDebugUtilsMessageTypeFlagsEXT,
                                       const VkDebugUtilsMessengerCallbackDataEXT*,
-                                      void*) = _defaultCallback;
+                                      void*) = &DebugMessenger::_defaultCallback;
 
-    static VKAPI_ATTR VkBool32 VKAPI_CALL _defaultCallback(
-	VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-	VkDebugUtilsMessageTypeFlagsEXT messageType,
-	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,void* usrDataCallback);
 };

@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-static VKAPI_ATTR VkBool32 VKAPI_CALL _defaultCallback(
+VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessenger::_defaultCallback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT messageType,
 	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,

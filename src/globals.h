@@ -7,6 +7,8 @@ typedef int64_t  i64;
 typedef uint32_t ui32;
 typedef uint64_t ui64;
 
+typedef long long arch;
+
 typedef float    f32;
 typedef double   f64;
 
@@ -25,3 +27,7 @@ typedef Vector4<double> dvec4;
 typedef Matrix4<int>    imat4;
 typedef Matrix4<float>  fmat4;
 typedef Matrix4<double> dmat4;
+
+#define VK_CHECK( expr )  if ( (expr) != VK_SUCCESS ) { std::cout << "Vulkan Error evaluating \" "<< #expr << " \" " << std::endl; }
+#define VK_CHECK_EXTENDED( expr, msg ) if ( (expr) != VK_SUCCESS ) { std::cout << "Vulkan Error evaluating \" "<< #expr << " \" " << "Info: " << msg << std::endl; }
+ 

@@ -79,4 +79,10 @@ namespace VulkanSupport {
         delete[] prop;
         return 0;
     }
+
+
+    VkPhysicalDevice selPhyDvc(VkPhysicalDevice* arr, ui32 count) {
+        return arr[0];
+    }
+
 }

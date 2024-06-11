@@ -1,23 +1,16 @@
 #pragma once
 
 #include "globals.h"
-#include "window.h"
+#include "nwin/window.h"
+#include "validation.h"
+#include "vkdecl.h"
 
-#include "vulkan/vulkan.h"
-#include "vulkan/vulkan_core.h"
 
 typedef NWin::Window* pWin;
 
 //crtInfo can be modified befored calling VkApp so that it can be customized 
-struct Window {
-    NWin::WindowCrtInfo crtInfo; //creation info
+struct Window { NWin::WindowCrtInfo crtInfo; //creation info
     pWin ptr = nullptr;
-};
-
-struct VulkanData {
-    VkPhysicalDevice phyDvc;
-    VkDevice         dvc;
-    VkInstance       inst;
 };
 
 class Vkapp {
@@ -28,6 +21,11 @@ public:
     int loop();
     int dstr();
 
+    int initVkData();
+
     Window win; 
     VulkanData data;
+    bool validationEnabled = 1;
+    DebugMessenger dbgMsg;
+
 };
