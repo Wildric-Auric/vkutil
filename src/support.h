@@ -6,11 +6,20 @@
 #include <vulkan/vulkan.h>
 
 namespace VulkanSupport {
+    struct QueueFamIndices {
+        ui32 gfx = -1;   //graphics
+        ui32 pre = -1;   //present 
+        ui32 com = -1;   //compute
+        ui32 trs = -1;   //transfer
+    };
+
     bool extSupport(const char* ext);
     ui32 extsSupport(const char** array, ui32 arrCount);
-    
     bool layerSupport(VulkanData& vkdata, const char* layer);
     ui32 layersSupport(VulkanData& vkdata,const char** array, ui32 arrCount);
 
     VkPhysicalDevice selPhyDvc(VkPhysicalDevice* arr, ui32 count);
+
+    void findQueues(QueueFamIndices&, VulkanData&);
+
 }

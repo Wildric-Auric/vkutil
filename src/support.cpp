@@ -1,3 +1,4 @@
+#include "support.h"
 #include "vkapp.h"
 #include "vulkan/vulkan_core.h"
 
@@ -84,5 +85,28 @@ namespace VulkanSupport {
     VkPhysicalDevice selPhyDvc(VkPhysicalDevice* arr, ui32 count) {
         return arr[0];
     }
+    
+    void findQueues(QueueFamIndices& ind, VulkanData& vkdata) {
+        ui32 count; 
+        VkBool32                sup;
+        VkQueueFamilyProperties prop;
+        vkGetPhysicalDeviceQueueFamilyProperties(vkdata.phyDvc, &count, nullptr);
+        VkQueueFamilyProperties* famArr = new VkQueueFamilyProperties[count];
+        vkGetPhysicalDeviceQueueFamilyProperties(vkdata.phyDvc, &count, famArr);
 
+        for (ui32 i = 0; i < count; ++i) {
+            const VkQueueFamilyProperties& q = famArr[i];
+            if (q.queueFlags & VK_QUEUE_GRAPHICS_BIT) 
+                ind.gfx = i;
+            if (q.queueFlags & VK_QUEUE_TRANSFER_BIT)
+                ind.trs = i;
+            if (q.queueFlags & VK_QUEUE_COMPUTE_BIT) 
+                ind.com = i;
+            vkGetPhysicalDeviceSurfaceSupportKHR(vkdata.phyDvc, i, vkdata.srfc, &sup);
+            if (sup) {
+                ind.pre = i;
+            }
+        }
+        delete[] famArr;
+    }
 }
