@@ -7,19 +7,34 @@
 
 namespace VulkanSupport {
     struct QueueFamIndices {
-        ui32 gfx = -1;   //graphics
-        ui32 pre = -1;   //present 
-        ui32 com = -1;   //compute
-        ui32 trs = -1;   //transfer
+        i32 gfx = -1;   //graphics
+        i32 pre = -1;   //present 
+        i32 com = -1;   //compute
+        i32 trs = -1;   //transfer
     };
 
+    struct SwpchainCap {
+        VkSurfaceCapabilitiesKHR cap;
+        std::vector<VkSurfaceFormatKHR> srfcFormats;
+        std::vector<VkPresentModeKHR>   prsntModes;
+
+        bool valid  = 0;
+
+    };
+
+
+    //Returns a boolean indicating if extension, passed as parameter, is available
     bool extSupport(const char* ext);
+    //Returns the index of the last array extension that is not supported,
+    //the array is indexed starting by 1.
+    //If return value is 0 then all extensions are supported
     ui32 extsSupport(const char** array, ui32 arrCount);
-    bool layerSupport(VulkanData& vkdata, const char* layer);
-    ui32 layersSupport(VulkanData& vkdata,const char** array, ui32 arrCount);
+    bool layerSupport(const char* layer);
+    ui32 layersSupport(const char** array, ui32 arrCount);
 
     VkPhysicalDevice selPhyDvc(VkPhysicalDevice* arr, ui32 count);
 
     void findQueues(QueueFamIndices&, VulkanData&);
 
+    void 
 }

@@ -1,4 +1,5 @@
 #include "vkapp.h"
+#include "vkdecl.h"
 #include "vulkan/vulkan_core.h"
 #include "nwin/vulkan_surface.h"
 #include "support.h"
@@ -16,7 +17,8 @@ i32 Vkapp::init() {
 
 VkResult createLogicalDevice(VulkanData& data) {
     VkDeviceCreateInfo crtInfo{};
-    VkPhysicalDeviceFeatures feat;
+    VkPhysicalDeviceFeatures feat{};
+    std::vector<const char*> ext = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     std::vector<VkDeviceQueueCreateInfo> queueFamCrtInfo;
     std::vector<ui32> lut;
 
@@ -28,8 +30,8 @@ VkResult createLogicalDevice(VulkanData& data) {
     crtInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     crtInfo.pNext = 0;
 
-    for (int offset = 0; offset < sizeof(VulkanSupport::QueueFamIndices); offset += sizeof(ui32)) {
-        const ui32 index = *((arch*)&fam + offset);
+    for (int offset = 0; offset < sizeof(VulkanSupport::QueueFamIndices); offset += sizeof(fam.gfx)) {
+        const i32 index = *( (i32*)((arch)(void*)&fam + offset) );
         if (index == -1 || std::find(lut.begin(), lut.end(), index) != lut.end() ) 
             continue;
         lut.push_back(index);
@@ -43,7 +45,17 @@ VkResult createLogicalDevice(VulkanData& data) {
     }
     crtInfo.queueCreateInfoCount = queueFamCrtInfo.size(); 
     crtInfo.pQueueCreateInfos    = queueFamCrtInfo.data();
-    //TODO::Finish impl
+    crtInfo.pEnabledFeatures     = &feat;
+
+    bool validation = 1; //TODO::Refactor this;
+    const char* validationLayer = VK_STR_VALIDATION_LAYER;
+    if (validation) {
+        crtInfo.enabledLayerCount = 1;
+        crtInfo.ppEnabledLayerNames = &validationLayer;
+    }
+
+    crtInfo.enabledExtensionCount = ext.size();
+    crtInfo.ppEnabledExtensionNames = ext.data();
 
     return vkCreateDevice(data.phyDvc, &crtInfo, nullptr, &data.dvc);
 }
@@ -71,7 +83,7 @@ int Vkapp::initVkData() {
 
     if (validationEnabled) {
         if ( !VulkanSupport::extSupport(VK_EXT_DEBUG_UTILS_EXTENSION_NAME) 
-             || !VulkanSupport::layerSupport(data, VK_STR_VALIDATION_LAYER) ) {
+             || !VulkanSupport::layerSupport(VK_STR_VALIDATION_LAYER) ) {
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
 
@@ -93,9 +105,13 @@ int Vkapp::initVkData() {
     
     VK_CHECK_EXTENDED(res, "Failed to create vulkan instance"); 
     //Create Debug Messenger
-    dbgMsg.create(data); 
+    bool validation = true;
+    if (validation) {
+        dbgMsg.fillCrtInfo();
+        dbgMsg.create(data); 
+    }
     //Create Surface
-    NWin::createSurface(win.ptr, data.inst, data.srfc);
+    NWin::createSurface(win.ptr, data.inst, &data.srfc);
     VK_CHECK_EXTENDED(res, "Failed to create window surface");
     //Physical device
     ui32 count; 
@@ -106,7 +122,10 @@ int Vkapp::initVkData() {
     data.phyDvc = VulkanSupport::selPhyDvc(arr, count);
     delete[] arr;
     //Logical device
-    createLogicalDevice(data);
+    VK_CHECK_EXTENDED(
+            createLogicalDevice(data), 
+            "Failed to create logical device"
+            )
     return res; 
 }
 
@@ -116,7 +135,11 @@ i32 Vkapp::loop() {
 
 i32 Vkapp::dstr() {
 
-    dbgMsg.dstry();
+    dbgMsg.dstr();
+   
+    vkDestroySurfaceKHR(data.inst, data.srfc, nullptr);
+    vkDestroyDevice(data.dvc, nullptr);
+
     vkDestroyInstance(data.inst, nullptr);
     NWin::Window::stDestroyWindow(win.ptr);
 

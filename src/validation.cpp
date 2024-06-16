@@ -33,7 +33,7 @@ VkResult DebugMessenger::create(VulkanData& vkdata) {
 	return VK_ERROR_EXTENSION_NOT_PRESENT;
 }
 
-void DebugMessenger::dstry() {
+void DebugMessenger::dstr() {
     PFN_vkDestroyDebugUtilsMessengerEXT func =
 		(PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(_vkdata.inst, "vkDestroyDebugUtilsMessengerEXT");
 	if (func == nullptr) return;

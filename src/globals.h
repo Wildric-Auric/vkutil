@@ -7,7 +7,7 @@ typedef int64_t  i64;
 typedef uint32_t ui32;
 typedef uint64_t ui64;
 
-typedef long long arch;
+typedef size_t   arch;
 
 typedef float    f32;
 typedef double   f64;

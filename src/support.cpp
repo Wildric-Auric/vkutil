@@ -31,7 +31,7 @@ namespace VulkanSupport {
         vkEnumerateInstanceExtensionProperties(nullptr, &count, prop);
 
         for (ui32 i = 0; i < arrCount; ++i) {
-            temp = i;
+            temp = i + 1;
             for (ui32 j = 0; j < count; ++j) {
                 if ( !strcmp(array[i], prop[j].extensionName) ) {
                     temp = 0;
@@ -43,13 +43,13 @@ namespace VulkanSupport {
         return ret;
     }
     
-    bool layerSupport(VulkanData& vkdata, const char* layer) {
+    bool layerSupport(const char* layer) {
         ui32 count;
         VkLayerProperties* prop;
         
-        vkEnumerateDeviceLayerProperties(vkdata.phyDvc, &count, nullptr);
+        vkEnumerateInstanceLayerProperties(&count, nullptr);
         prop = new VkLayerProperties[count];
-        vkEnumerateDeviceLayerProperties(vkdata.phyDvc, &count, prop);
+        vkEnumerateInstanceLayerProperties(&count, prop);
         for (ui32 i = 0; i < count; ++i) {
             if (!strcmp(layer, prop[i].layerName)) {
                 delete[] prop;
@@ -60,16 +60,16 @@ namespace VulkanSupport {
         return 0;
     }
 
-    ui32 layersSupport(VulkanData& vkdata,const char** array, ui32 arrCount) { 
+    ui32 layersSupport(const char** array, ui32 arrCount) { 
         ui32 count;
         VkLayerProperties* prop;
         ui32 ret  = 0;
         ui32 temp = 0; 
-        vkEnumerateDeviceLayerProperties(vkdata.phyDvc, &count, nullptr);
+        vkEnumerateInstanceLayerProperties(&count, nullptr);
         prop = new VkLayerProperties[count];
-        vkEnumerateDeviceLayerProperties(vkdata.phyDvc, &count, prop);
+        vkEnumerateInstanceLayerProperties(&count, prop);
         for (ui32 i = 0; i < arrCount; ++i) {
-            temp = i;
+            temp = i + 1;
             for (ui32 j = 0; j < count; ++j) {
                 if (!strcmp(array[i], prop[j].layerName)) {
                     temp = 0; 

@@ -8,7 +8,7 @@ public:
     DebugMessenger() = default;
     VkDebugUtilsMessengerCreateInfoEXT& fillCrtInfo();
     VkResult    create(VulkanData& vkdata);
-    void        dstry();
+    void        dstr();
 
     VkDebugUtilsMessengerEXT _data          = nullptr; 
     VkDebugUtilsMessengerCreateInfoEXT _crtInfo{};
