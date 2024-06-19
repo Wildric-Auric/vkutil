@@ -4,15 +4,8 @@
 #include "nwin/window.h"
 #include "validation.h"
 #include "vkdecl.h"
-
-
-typedef NWin::Window* pWin;
-
-//crtInfo can be modified befored calling VkApp::init() so that it window be customized 
-struct Window {
-    NWin::WindowCrtInfo crtInfo; //creation info
-    pWin ptr = nullptr;
-};
+#include "frame.h"
+#include "pipeline.h"
 
 class Vkapp {
 public: 
@@ -36,5 +29,9 @@ public:
     VulkanData data;
     bool validationEnabled = 1;
     DebugMessenger dbgMsg;
+
+    Frame frame;
+    Swapchain swpchain;
+    Pipeline  pipeline;
 
 };

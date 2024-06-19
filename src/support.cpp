@@ -109,4 +109,33 @@ namespace VulkanSupport {
         }
         delete[] famArr;
     }
+    
+    void getSwapchaincap(VulkanData& vkdata, SwpchainCap& capRef) {
+        ui32 count;
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkdata.phyDvc, vkdata.srfc, &capRef.cap);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(vkdata.phyDvc, vkdata.srfc, &count, nullptr);
+        capRef.srfcFormats.resize(count);   
+        vkGetPhysicalDeviceSurfaceFormatsKHR(vkdata.phyDvc, vkdata.srfc, &count, capRef.srfcFormats.data());
+        
+        vkGetPhysicalDeviceSurfacePresentModesKHR(vkdata.phyDvc, vkdata.srfc, &count, nullptr);
+        capRef.srfcFormats.resize(count);   
+        vkGetPhysicalDeviceSurfacePresentModesKHR(vkdata.phyDvc, vkdata.srfc, &count, capRef.prsntModes.data());
+
+        capRef.valid = capRef.prsntModes.size() && capRef.srfcFormats.size();
+    }
+
+    i32 selSrfcFmt(const SwpchainCap& specRef) {
+        for (arch i = 0; i < specRef.srfcFormats.size(); ++i) {
+           if (specRef.srfcFormats[i].format == VK_FORMAT_R8G8B8_SRGB 
+               && specRef.srfcFormats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) 
+               return i;
+        }
+        return 0;
+    }
+
+    
+    VkPresentModeKHR selPresent() {
+       return VK_PRESENT_MODE_FIFO_KHR; 
+    }
+
 }

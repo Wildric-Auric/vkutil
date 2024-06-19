@@ -4,13 +4,43 @@
 #include "nwin/vulkan_surface.h"
 #include "support.h"
 #include "params.h"
-#include <string>
+#include "io.h"
 
 i32 Vkapp::init() {
     //Open window
     win.ptr = NWin::Window::stCreateWindow(win.crtInfo);    
     if (!win.ptr) {return 1;}
     initVkData();
+   
+    VK_CHECK_EXTENDED(swpchain.create(data, win), "Failed to create swapchain");
+
+
+    std::vector<char> frag;
+    std::vector<char> vert;
+    
+    io::readBin("..\\build\\bin\\trifrag.spv", frag );
+    io::readBin("..\\build\\bin\\trivert.spv", vert );
+    Shader fragS, vertS;
+    
+    fragS.fillCrtInfo((const ui32*)frag.data(), frag.size());
+    vertS.fillCrtInfo((const ui32*)vert.data(), vert.size());
+
+    fragS.create(data);
+    vertS.create(data);
+
+    fragS.fillStageCrtInfo(VK_SHADER_STAGE_FRAGMENT_BIT);
+    vertS.fillStageCrtInfo(VK_SHADER_STAGE_VERTEX_BIT);
+
+    VkPipelineShaderStageCreateInfo stages[] = {
+        vertS.stageCrtInfo,
+        fragS.stageCrtInfo
+    };
+
+    pipeline.fillCrtInfo();
+    pipeline.crtInfo.stageCount = 2;
+    pipeline.crtInfo.pStages    = stages;
+
+    VK_CHECK_EXTENDED(pipeline.create(data), "Failed to create Pipeline");
 
     return 0;
 }
@@ -136,7 +166,9 @@ i32 Vkapp::loop() {
 i32 Vkapp::dstr() {
 
     dbgMsg.dstr();
-   
+
+    swpchain.dstr();
+
     vkDestroySurfaceKHR(data.inst, data.srfc, nullptr);
     vkDestroyDevice(data.dvc, nullptr);
 

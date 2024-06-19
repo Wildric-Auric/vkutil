@@ -17,9 +17,7 @@ namespace VulkanSupport {
         VkSurfaceCapabilitiesKHR cap;
         std::vector<VkSurfaceFormatKHR> srfcFormats;
         std::vector<VkPresentModeKHR>   prsntModes;
-
         bool valid  = 0;
-
     };
 
 
@@ -35,6 +33,9 @@ namespace VulkanSupport {
     VkPhysicalDevice selPhyDvc(VkPhysicalDevice* arr, ui32 count);
 
     void findQueues(QueueFamIndices&, VulkanData&);
+    //Swapchain related
+    void getSwapchaincap(VulkanData&, SwpchainCap&);
+    i32  selSrfcFmt(const SwpchainCap&);
 
-    void 
+    VkPresentModeKHR selPresent();
 }
