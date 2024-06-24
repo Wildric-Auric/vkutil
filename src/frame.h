@@ -19,7 +19,19 @@ class Swapchain {
         VulkanData     _vkdata;
 };
 
+class Renderpass {
+public:
+    VkResult create(const VulkanData&);
+    void     dstr();
+    VkRenderPass handle;
+
+    VulkanData _vkdata;
+};
+
 class Frame {
     public:
-
+        VkFence      queueSubmitComplete;
+        //Signaled by vkAcquireNext
+        VkSemaphore  imgAvailable; 
+    
 };

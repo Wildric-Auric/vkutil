@@ -4,6 +4,7 @@
 VkResult Pipeline::create(const VulkanData& vkdata) {
     _vkdata = vkdata;
     vkCreatePipelineLayout(vkdata.dvc, &layoutCrtInfo, nullptr, &_layout);
+    crtInfo.layout = _layout;
     return vkCreateGraphicsPipelines(vkdata.dvc, VK_NULL_HANDLE, 1, &crtInfo, nullptr, &handle); 
 }
 
@@ -61,6 +62,7 @@ VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo() {
     viewportState.pViewports    = &_viewport;
    
     layoutCrtInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layoutCrtInfo.setLayoutCount = 0;
 
     crtInfo.sType      = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     crtInfo.stageCount          = 0;
@@ -75,7 +77,6 @@ VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo() {
     crtInfo.layout              = NULL;
     crtInfo.renderPass          = NULL;
     crtInfo.subpass             = 0;
-
     return crtInfo;
 }
 

@@ -36,12 +36,21 @@ i32 Vkapp::init() {
         fragS.stageCrtInfo
     };
 
+
+    renderpass.create(data);
+
+    VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, data);
+    gfxCmdPool.create(data, qfam.gfx);
+
     pipeline.fillCrtInfo();
     pipeline.crtInfo.stageCount = 2;
     pipeline.crtInfo.pStages    = stages;
+    pipeline.crtInfo.renderPass = renderpass.handle;
 
     VK_CHECK_EXTENDED(pipeline.create(data), "Failed to create Pipeline");
-
+    
+    fragS.dstr();
+    vertS.dstr();
     return 0;
 }
 
@@ -159,7 +168,9 @@ int Vkapp::initVkData() {
     return res; 
 }
 
+
 i32 Vkapp::loop() {
+     
     return 0;
 }
 
@@ -168,11 +179,19 @@ i32 Vkapp::dstr() {
     dbgMsg.dstr();
 
     swpchain.dstr();
+    
+    renderpass.dstr();
+
+    gfxCmdPool.dstr();
+
+    pipeline.dstr();
 
     vkDestroySurfaceKHR(data.inst, data.srfc, nullptr);
+
     vkDestroyDevice(data.dvc, nullptr);
 
     vkDestroyInstance(data.inst, nullptr);
+
     NWin::Window::stDestroyWindow(win.ptr);
 
     return 0;

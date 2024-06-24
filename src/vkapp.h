@@ -6,6 +6,7 @@
 #include "vkdecl.h"
 #include "frame.h"
 #include "pipeline.h"
+#include "cmd_buffer.h"
 
 class Vkapp {
 public: 
@@ -30,8 +31,10 @@ public:
     bool validationEnabled = 1;
     DebugMessenger dbgMsg;
 
-    Frame frame;
-    Swapchain swpchain;
-    Pipeline  pipeline;
 
+    Frame         frame;
+    Swapchain     swpchain;
+    Pipeline      pipeline;
+    Renderpass    renderpass;
+    CmdBufferPool gfxCmdPool;
 };
