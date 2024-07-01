@@ -20,7 +20,7 @@ void     CmdBufferPool::dstr() {
 
 
 VkResult CmdBufferPool::allocCmdBuff(VkCommandBuffer* outarr, ui32 arrLen) {
-  VkCommandBufferAllocateInfo allocInfo;
+  VkCommandBufferAllocateInfo allocInfo{};
   allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   allocInfo.commandPool = handle;
