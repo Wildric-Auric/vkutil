@@ -30,8 +30,11 @@ public:
 
 class Frame {
     public:
-        VkFence      queueSubmitComplete;
-        //Signaled by vkAcquireNext
-        VkSemaphore  imgAvailable; 
-    
+        VkResult     create(const VulkanData&);
+        void         dstr(); 
+
+        VkFence      fenQueueSubmitComplete; //Signaled by  vkQueueSubmit()
+        VkSemaphore  semImgAvailable;        //Signaled by vkAcquireNext...
+        VkSemaphore  semRdrFinished;         //Signaled by vkQueueSubmit()
+        VulkanData   _vkdata; 
 };

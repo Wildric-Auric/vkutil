@@ -32,7 +32,7 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win) {
     crtInfo.imageUsage  = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; //Render directly
     crtInfo.presentMode = VulkanSupport::selPresent();
 
-    crtInfo.preTransform = spec.cap.currentTransform;
+    crtInfo.preTransform   = spec.cap.currentTransform;
     crtInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     crtInfo.clipped        = VK_TRUE;
     crtInfo.oldSwapchain   = VK_NULL_HANDLE;
@@ -173,6 +173,46 @@ VkResult Renderpass::create(const VulkanData& vkdata) {
 void Renderpass::dstr() {
     vkDestroyRenderPass(_vkdata.dvc, handle, nullptr);
 }
+
+VkResult Frame::create(const VulkanData& vkdata) {
+    _vkdata = vkdata;
+    VkFenceCreateInfo fenCrtInfo;
+    VkSemaphoreCreateInfo semCrtInfo;
+
+    fenCrtInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenCrtInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    fenCrtInfo.pNext = nullptr;
+
+    semCrtInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semCrtInfo.pNext = nullptr;
+    semCrtInfo.flags = NULL;
+
+    VkResult res = vkCreateFence(_vkdata.dvc, &fenCrtInfo, nullptr, &fenQueueSubmitComplete);
+    VkResult res0 = vkCreateSemaphore(_vkdata.dvc, &semCrtInfo, nullptr, &semImgAvailable);
+    VkResult res1 = vkCreateSemaphore(_vkdata.dvc, &semCrtInfo, nullptr, &semRdrFinished);
+
+    if (res != VK_SUCCESS) {
+        return res; 
+    }
+    else if (res0 != VK_SUCCESS) {
+        return res0; 
+    }
+    else if (res1 != VK_SUCCESS) {
+        return res1;
+    }
+    return VK_SUCCESS; 
+}
+
+void Frame::dstr() {
+    vkDestroyFence(_vkdata.dvc, fenQueueSubmitComplete, nullptr);
+    vkDestroySemaphore(_vkdata.dvc, semImgAvailable, nullptr);
+}
+
+
+
+
+
+
 
 
 

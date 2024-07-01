@@ -168,9 +168,62 @@ int Vkapp::initVkData() {
     return res; 
 }
 
-
+//This whole method is to be refactored, locality and verbosity here are only for the sake of testing
 i32 Vkapp::loop() {
-     
+    VkCommandBuffer cmdBuff; 
+    VkCommandBufferBeginInfo beginInfo;
+    VkRenderPassBeginInfo    rdrpassInfo{};
+    VkSubmitInfo             submitInfo{};
+    VkPresentInfoKHR         preInfo{};
+
+    ui32 swpIndex; 
+    Frame frame;
+    frame.create(data);
+
+    gfxCmdPool.allocCmdBuff(&cmdBuff, 1); 
+
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = NULL;
+    beginInfo.pNext = nullptr;
+    beginInfo.pInheritanceInfo = nullptr;
+
+    rdrpassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    rdrpassInfo.renderPass = renderpass.handle;
+    
+    preInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    preInfo.swapchainCount = 1;
+    preInfo.pSwapchains    = &swpchain.handle;
+    preInfo.pImageIndices  = &swpIndex;
+    preInfo.waitSemaphoreCount = 1;
+    preInfo.pWaitSemaphores    = &frame.semImgAvailable;
+
+    VkQueue gfxQueue;
+    VkQueue preQueue;
+    
+    VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, data);
+
+    vkGetDeviceQueue(data.dvc, qfam.gfx, 0, &gfxQueue);
+    vkGetDeviceQueue(data.dvc, qfam.pre, 0, &preQueue);
+
+    while (1) {
+        //vkWaitForFences(data.dvc, 1, &frame.fenQueueSubmitComplete, VK_TRUE, UINT64_MAX);
+        vkAcquireNextImageKHR(data.dvc, swpchain.handle, UINT64_MAX, frame.semImgAvailable, VK_NULL_HANDLE, &swpIndex);
+        //TODO::RECREATE SWAPCHAIN IF OUT OF DATE
+        //vkResetFences(data.dvc, 1, &frame.fenQueueSubmitComplete);
+
+        //        vkResetCommandBuffer(cmdBuff, 0);
+        //        vkBeginCommandBuffer(cmdBuff, &beginInfo);
+        //
+        //        vkCmdBeginRenderPass(cmdBuff, &rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
+        //        vkCmdEndRenderPass(cmdBuff);
+        //        vkEndCommandBuffer(cmdBuff);
+        //
+        //        vkQueueSubmit(gfxQueue, 1, &submitInfo, frame.fenQueueSubmitComplete);
+
+        vkQueuePresentKHR(preQueue, &preInfo);
+    }
+
+    frame.dstr();
     return 0;
 }
 
