@@ -4,7 +4,7 @@
 #include "params.h"
 
 
-VkResult Swapchain::create(const VulkanData& vkdata, const Window& win) {
+VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpass rdrpass) {
     VkResult res;
     VkSwapchainCreateInfoKHR crtInfo{};
     VkSurfaceFormatKHR srfcFmt;
@@ -62,13 +62,22 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win) {
     imgs.resize(imgCount);
     vkGetSwapchainImagesKHR(vkdata.dvc, handle, &imgCount, imgs.data());
 
-    //Create swapchaine image views
+    //Create swapchaine image views and framebuffers
     views.resize(imgCount);
+    fmbuffs.resize(imgCount);
     for (arch i = 0; i < imgCount; ++i) {
         views[i].fillCrtInfo();
         views[i].crtInfo.format = srfcFmt.format;
         views[i].crtInfo.image  = imgs[i];
         views[i].create(_vkdata);
+
+        fmbuffs[i].fillCrtInfo();
+        fmbuffs[i].crtInfo.width  = crtInfo.imageExtent.width;
+        fmbuffs[i].crtInfo.height = crtInfo.imageExtent.height;
+        //TODO::update this when there is MSAA impl and depth impl
+        VkImageView* att    =  &views[i].handle;
+        ui32         attLen = 1;
+        fmbuffs[i].create(_vkdata, rdrpass.handle, att, attLen);
     }
 
     return res;
@@ -90,6 +99,7 @@ void Swapchain::chooseExtent(const Window& win, const VkSurfaceCapabilitiesKHR& 
 void Swapchain::dstr() {
     for (arch i = 0; i < imgs.size(); ++i) {
         views[i].dstr();
+        fmbuffs[i].dstr();
     }
     vkDestroySwapchainKHR(_vkdata.dvc, handle, nullptr);
 }
@@ -204,8 +214,17 @@ VkResult Frame::create(const VulkanData& vkdata) {
 }
 
 void Frame::dstr() {
+
+    VkQueue gfxQueue;
+    VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, _vkdata);
+    vkGetDeviceQueue(_vkdata.dvc, qfam.gfx, 0, &gfxQueue);
+
+    vkQueueWaitIdle(gfxQueue);
+
     vkDestroyFence(_vkdata.dvc, fenQueueSubmitComplete, nullptr);
     vkDestroySemaphore(_vkdata.dvc, semImgAvailable, nullptr);
+    vkDestroySemaphore(_vkdata.dvc, semRdrFinished, nullptr);
+
 }
 
 

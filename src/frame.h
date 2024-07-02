@@ -5,20 +5,6 @@
 #include <vulkan/vulkan.h>
 #include "vkimg.h"
 
-class Swapchain {
-    public:
-        VkResult create(const VulkanData&, const Window& );
-        void recreate();
-        void dstr();
-
-        void chooseExtent(const Window& win, const VkSurfaceCapabilitiesKHR& cap, VkExtent2D* const outExt  );
-
-        VkSwapchainKHR handle = nullptr;
-        std::vector<VkImage>   imgs;
-        std::vector<imgView> views;
-        VulkanData     _vkdata;
-};
-
 class Renderpass {
 public:
     VkResult create(const VulkanData&);
@@ -26,6 +12,21 @@ public:
     VkRenderPass handle;
 
     VulkanData _vkdata;
+};
+
+class Swapchain {
+    public:
+        VkResult create(const VulkanData& vkdata, const Window& win, Renderpass rdrpass);
+        void recreate();
+        void dstr();
+
+        void chooseExtent(const Window& win, const VkSurfaceCapabilitiesKHR& cap, VkExtent2D* const outExt  );
+
+        VkSwapchainKHR handle = nullptr;
+        std::vector<VkImage>     imgs;
+        std::vector<imgView>     views;
+        std::vector<Framebuffer> fmbuffs;
+        VulkanData     _vkdata;
 };
 
 class Frame {

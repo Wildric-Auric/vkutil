@@ -12,7 +12,9 @@ i32 Vkapp::init() {
     if (!win.ptr) {return 1;}
     initVkData();
    
-    VK_CHECK_EXTENDED(swpchain.create(data, win), "Failed to create swapchain");
+    renderpass.create(data);
+
+    VK_CHECK_EXTENDED(swpchain.create(data, win, renderpass), "Failed to create swapchain");
 
 
     std::vector<char> frag;
@@ -35,9 +37,6 @@ i32 Vkapp::init() {
         vertS.stageCrtInfo,
         fragS.stageCrtInfo
     };
-
-
-    renderpass.create(data);
 
     VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, data);
     gfxCmdPool.create(data, qfam.gfx);
@@ -171,7 +170,7 @@ int Vkapp::initVkData() {
 //This whole method is to be refactored, locality and verbosity here are only for the sake of testing
 i32 Vkapp::loop() {
     VkCommandBuffer cmdBuff; 
-    VkCommandBufferBeginInfo beginInfo;
+    VkCommandBufferBeginInfo beginInfo{};
     VkRenderPassBeginInfo    rdrpassInfo{};
     VkSubmitInfo             submitInfo{};
     VkPresentInfoKHR         preInfo{};
@@ -187,15 +186,35 @@ i32 Vkapp::loop() {
     beginInfo.pNext = nullptr;
     beginInfo.pInheritanceInfo = nullptr;
 
+    NWin::Vec2 size;
+    win.ptr->getDrawAreaSize(size);
+
     rdrpassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    rdrpassInfo.renderPass = renderpass.handle;
-    
+    rdrpassInfo.renderPass  = renderpass.handle;
+    rdrpassInfo.renderArea.offset = {0,0};
+    rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
+    //TODO::add depth clear
+    VkClearValue clearCol = {0.0f, 0.3f, 0.0f, 1.0f};
+    rdrpassInfo.clearValueCount     = 1;
+    rdrpassInfo.pClearValues        = &clearCol;
+
+    submitInfo.sType =  VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount   = 1;
+    submitInfo.pCommandBuffers      = &cmdBuff;
+    submitInfo.waitSemaphoreCount   = 1;
+
+    submitInfo.pWaitSemaphores    = &frame.semImgAvailable;
+    VkPipelineStageFlags stage    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    submitInfo.pWaitDstStageMask  = &stage;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores    = &frame.semRdrFinished;
+
     preInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    preInfo.swapchainCount = 1;
-    preInfo.pSwapchains    = &swpchain.handle;
-    preInfo.pImageIndices  = &swpIndex;
+    preInfo.swapchainCount     = 1;
+    preInfo.pSwapchains        = &swpchain.handle;
+    preInfo.pImageIndices      = &swpIndex;
     preInfo.waitSemaphoreCount = 1;
-    preInfo.pWaitSemaphores    = &frame.semImgAvailable;
+    preInfo.pWaitSemaphores    = &frame.semRdrFinished;
 
     VkQueue gfxQueue;
     VkQueue preQueue;
@@ -206,21 +225,27 @@ i32 Vkapp::loop() {
     vkGetDeviceQueue(data.dvc, qfam.pre, 0, &preQueue);
 
     while (1) {
-        //vkWaitForFences(data.dvc, 1, &frame.fenQueueSubmitComplete, VK_TRUE, UINT64_MAX);
+        vkWaitForFences(data.dvc, 1, &frame.fenQueueSubmitComplete, VK_TRUE, UINT64_MAX);
         vkAcquireNextImageKHR(data.dvc, swpchain.handle, UINT64_MAX, frame.semImgAvailable, VK_NULL_HANDLE, &swpIndex);
         //TODO::RECREATE SWAPCHAIN IF OUT OF DATE
-        //vkResetFences(data.dvc, 1, &frame.fenQueueSubmitComplete);
+        vkResetFences(data.dvc, 1, &frame.fenQueueSubmitComplete);
 
-        //        vkResetCommandBuffer(cmdBuff, 0);
-        //        vkBeginCommandBuffer(cmdBuff, &beginInfo);
-        //
-        //        vkCmdBeginRenderPass(cmdBuff, &rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
-        //        vkCmdEndRenderPass(cmdBuff);
-        //        vkEndCommandBuffer(cmdBuff);
-        //
-        //        vkQueueSubmit(gfxQueue, 1, &submitInfo, frame.fenQueueSubmitComplete);
+        vkResetCommandBuffer(cmdBuff, 0);
+        vkBeginCommandBuffer(cmdBuff, &beginInfo);
 
+        rdrpassInfo.framebuffer = swpchain.fmbuffs[swpIndex].handle;
+        vkCmdBeginRenderPass(cmdBuff, &rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
+        vkCmdBindPipeline(cmdBuff, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
+        vkCmdEndRenderPass(cmdBuff);
+        vkEndCommandBuffer(cmdBuff);
+
+        vkQueueSubmit(gfxQueue, 1, &submitInfo, frame.fenQueueSubmitComplete); 
         vkQueuePresentKHR(preQueue, &preInfo);
+
+        win.ptr->_getKeyboard().update();
+        win.ptr->update();
+        if ( !win.ptr->shouldLoop() ) 
+            break;
     }
 
     frame.dstr();
