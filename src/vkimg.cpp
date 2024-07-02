@@ -54,3 +54,29 @@ void img::dstr() {
     vkDestroyImage(_vkdata.dvc, handle, nullptr);
 }
 
+VkFramebufferCreateInfo& Framebuffer::fillCrtInfo() {
+    crtInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO; 
+    crtInfo.layers = 1;
+    return crtInfo;
+
+}
+
+VkResult Framebuffer::create(const VulkanData& vkdata, VkRenderPass rdrpass, VkImageView* attchments, ui32 attLen) {
+   _vkdata = vkdata;
+   crtInfo.renderPass      = rdrpass;
+   crtInfo.attachmentCount = attLen;
+   crtInfo.pAttachments    = attchments;
+
+   return vkCreateFramebuffer(_vkdata.dvc, &crtInfo, nullptr, &handle);
+}
+
+void Framebuffer::dstr() {
+    vkDestroyFramebuffer(_vkdata.dvc, handle, nullptr);
+}
+
+
+
+
+
+
+
