@@ -118,7 +118,7 @@ namespace VulkanSupport {
         vkGetPhysicalDeviceSurfaceFormatsKHR(vkdata.phyDvc, vkdata.srfc, &count, capRef.srfcFormats.data());
         
         vkGetPhysicalDeviceSurfacePresentModesKHR(vkdata.phyDvc, vkdata.srfc, &count, nullptr);
-        capRef.srfcFormats.resize(count);   
+        capRef.prsntModes.resize(count);   
         vkGetPhysicalDeviceSurfacePresentModesKHR(vkdata.phyDvc, vkdata.srfc, &count, capRef.prsntModes.data());
 
         capRef.valid = capRef.prsntModes.size() && capRef.srfcFormats.size();
@@ -126,7 +126,7 @@ namespace VulkanSupport {
 
     i32 selSrfcFmt(const SwpchainCap& specRef) {
         for (arch i = 0; i < specRef.srfcFormats.size(); ++i) {
-           if (specRef.srfcFormats[i].format == VK_FORMAT_R8G8B8_SRGB 
+           if (specRef.srfcFormats[i].format == VK_FORMAT_R8G8B8A8_SRGB 
                && specRef.srfcFormats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) 
                return i;
         }
@@ -137,5 +137,15 @@ namespace VulkanSupport {
     VkPresentModeKHR selPresent() {
        return VK_PRESENT_MODE_FIFO_KHR; 
     }
-
+    
+    ui32 findMem(VulkanData& vkdata,ui32 typeFilter, VkMemoryPropertyFlags prop) {
+        VkPhysicalDeviceMemoryProperties memProp;
+        vkGetPhysicalDeviceMemoryProperties(vkdata.phyDvc, &memProp);
+        for (ui32 i = 0; i < memProp.memoryTypeCount; ++i) {
+            if ((typeFilter & (1 << i)) && (memProp.memoryTypes[i].propertyFlags & prop) == prop) {
+                return i;
+            }
+        }
+        return -1;
+    }
 }
