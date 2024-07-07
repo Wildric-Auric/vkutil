@@ -104,7 +104,6 @@ void Swapchain::dstr() {
     vkDestroySwapchainKHR(_vkdata.dvc, handle, nullptr);
 }
 
-
 VkResult Renderpass::create(const VulkanData& vkdata) {
     uchar COLOR_ATT_INDEX   = 0;
     uchar RESOLVE_ATT_INDEX = 1;
@@ -166,7 +165,20 @@ VkResult Renderpass::create(const VulkanData& vkdata) {
         subpass.pResolveAttachments  = &resolveAttRef;
     }
 
+    VkSubpassDependency dpn{};
+    dpn.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dpn.dstSubpass = 0;
+
+    dpn.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    dpn.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT          | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    dpn.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dpn.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT          | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+
     crtInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    crtInfo.dependencyCount = 1;
+    crtInfo.pDependencies = &dpn;
     crtInfo.subpassCount = 1;
     crtInfo.pSubpasses   = &subpass;
     crtInfo.attachmentCount = att.size();
