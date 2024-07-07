@@ -5,6 +5,8 @@
 #include "support.h"
 #include "params.h"
 #include "io.h"
+#include "vertex.h"
+
 
 i32 Vkapp::init() {
     //Open window
@@ -12,7 +14,9 @@ i32 Vkapp::init() {
     if (!win.ptr) {return 1;}
     initVkData();
    
-    renderpass.create(data);
+    VK_CHECK_EXTENDED(renderpass.create(data), "rndpass");
+
+    VK_CHECK_EXTENDED(frame.create(data), "frame");
 
     VK_CHECK_EXTENDED(swpchain.create(data, win, renderpass), "Failed to create swapchain");
 
@@ -27,8 +31,8 @@ i32 Vkapp::init() {
     fragS.fillCrtInfo((const ui32*)frag.data(), frag.size());
     vertS.fillCrtInfo((const ui32*)vert.data(), vert.size());
 
-    fragS.create(data);
-    vertS.create(data);
+    VK_CHECK_EXTENDED(fragS.create(data), "fragshader");
+    VK_CHECK_EXTENDED(vertS.create(data), "vertshader");
 
     fragS.fillStageCrtInfo(VK_SHADER_STAGE_FRAGMENT_BIT);
     vertS.fillStageCrtInfo(VK_SHADER_STAGE_VERTEX_BIT);
@@ -39,7 +43,7 @@ i32 Vkapp::init() {
     };
 
     VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, data);
-    gfxCmdPool.create(data, qfam.gfx);
+    VK_CHECK_EXTENDED(gfxCmdPool.create(data, qfam.gfx), "command pool");
 
     pipeline.fillCrtInfo();
     pipeline.crtInfo.stageCount = 2;
@@ -110,7 +114,7 @@ int Vkapp::initVkData() {
     appInfo.pNext = nullptr;
     appInfo.pApplicationName = std::to_string((arch)this).c_str();
     appInfo.pEngineName      = "No Engine";
-    appInfo.apiVersion       = VK_VERSION_1_0;
+    appInfo.apiVersion       =  VK_API_VERSION_1_0;
     appInfo.engineVersion     = VK_MAKE_VERSION(1,0,0);
 
     crtInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -168,6 +172,7 @@ int Vkapp::initVkData() {
 }
 
 //This whole method is to be refactored, locality and verbosity here are only for the sake of testing
+//TODO::Submission to queue must in 
 i32 Vkapp::loop() {
     VkCommandBuffer cmdBuff; 
     VkCommandBufferBeginInfo beginInfo{};
@@ -176,8 +181,6 @@ i32 Vkapp::loop() {
     VkPresentInfoKHR         preInfo{};
 
     ui32 swpIndex; 
-    Frame frame;
-    frame.create(data);
 
     gfxCmdPool.allocCmdBuff(&cmdBuff, 1); 
 
@@ -194,7 +197,7 @@ i32 Vkapp::loop() {
     rdrpassInfo.renderArea.offset = {0,0};
     rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
     //TODO::add depth clear
-    VkClearValue clearCol = {0.0f, 0.3f, 0.0f, 1.0f};
+    VkClearValue clearCol = {1.0f, 0.05f, 0.15f, 1.0f};
     rdrpassInfo.clearValueCount     = 1;
     rdrpassInfo.pClearValues        = &clearCol;
 
@@ -224,7 +227,16 @@ i32 Vkapp::loop() {
     vkGetDeviceQueue(data.dvc, qfam.gfx, 0, &gfxQueue);
     vkGetDeviceQueue(data.dvc, qfam.pre, 0, &preQueue);
 
-    while (1) {
+    VertexObject vobj;
+    VertexData strides[] = {
+        { {-1.0, -1.0, .0}, {0.0, 0.0} },
+        { { 1.0, -1.0, 0.0}, {1.0, 0.0} },
+        { {-1.0,  1.0, 0.0}, {0.0, 1.0} },
+    };
+
+    vobj.create(data, gfxCmdPool, (float*)strides,  sizeof(strides) );
+
+    while (win.ptr->shouldLoop()) {
         vkWaitForFences(data.dvc, 1, &frame.fenQueueSubmitComplete, VK_TRUE, UINT64_MAX);
         vkAcquireNextImageKHR(data.dvc, swpchain.handle, UINT64_MAX, frame.semImgAvailable, VK_NULL_HANDLE, &swpIndex);
         //TODO::RECREATE SWAPCHAIN IF OUT OF DATE
@@ -232,27 +244,51 @@ i32 Vkapp::loop() {
 
         vkResetCommandBuffer(cmdBuff, 0);
         vkBeginCommandBuffer(cmdBuff, &beginInfo);
-
+        
         rdrpassInfo.framebuffer = swpchain.fmbuffs[swpIndex].handle;
         vkCmdBeginRenderPass(cmdBuff, &rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
         vkCmdBindPipeline(cmdBuff, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
+      
+        VkDeviceSize voff = 0;
+        
+VkViewport viewport;
+VkRect2D   scissor;
+viewport.minDepth = 0.0f;
+viewport.maxDepth = 1.0f;
+viewport.x = 0.0f;
+viewport.y = 0.0f;
+viewport.width =  400;
+viewport.height = 400;
+scissor.extent =  {(ui32)viewport.width, (ui32)viewport.height};
+scissor.offset = { 0,0 };
+
+vkCmdSetViewport(cmdBuff, 0, 1, &viewport);
+vkCmdSetScissor(cmdBuff, 0, 1, &scissor);
+
+
+        vkCmdBindVertexBuffers(cmdBuff, 0, 1, &vobj.buff.handle, &voff);
+        vkCmdDraw(cmdBuff, sizeof(strides) / sizeof(VertexData) , 1, 0, 0);
+
         vkCmdEndRenderPass(cmdBuff);
         vkEndCommandBuffer(cmdBuff);
 
         vkQueueSubmit(gfxQueue, 1, &submitInfo, frame.fenQueueSubmitComplete); 
         vkQueuePresentKHR(preQueue, &preInfo);
-
+ 
         win.ptr->_getKeyboard().update();
         win.ptr->update();
-        if ( !win.ptr->shouldLoop() ) 
-            break;
     }
+    
+    vkQueueWaitIdle(gfxQueue);
+    gfxCmdPool.freeCmdBuff(cmdBuff);
 
-    frame.dstr();
+    vobj.dstr();
+
     return 0;
 }
 
 i32 Vkapp::dstr() {
+    frame.dstr();
 
     dbgMsg.dstr();
 
