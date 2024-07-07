@@ -29,3 +29,49 @@ VkResult CmdBufferPool::allocCmdBuff(VkCommandBuffer* outarr, ui32 arrLen) {
   return vkAllocateCommandBuffers(_vkdata.dvc, &allocInfo, outarr);
 }
 
+void CmdBufferPool::freeCmdBuff(VkCommandBuffer cmdBuff) {
+    vkFreeCommandBuffers(_vkdata.dvc, handle, 1, &cmdBuff);
+}
+
+VkCommandBuffer CmdBufferPool::execBegin() {
+    VkCommandBufferAllocateInfo allocInfo{};
+    VkCommandBufferBeginInfo beginInfo{};
+    VkCommandBuffer buff;
+
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = 1;
+    allocInfo.commandPool        = handle;
+
+    vkAllocateCommandBuffers(_vkdata.dvc, &allocInfo, &buff);
+    
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(buff, &beginInfo);
+
+    return buff;
+}
+
+void CmdBufferPool::execEnd(VkCommandBuffer buff, i32 index) {
+    VkQueue q;
+    VkSubmitInfo info{};
+    if (index == -1) {
+        VulkanSupport::QueueFamIndices qfam; 
+        VulkanSupport::findQueues(qfam, _vkdata);
+        index = qfam.gfx;
+    }
+    vkGetDeviceQueue(_vkdata.dvc, index, 0, &q);
+
+    info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    info.commandBufferCount = 1;
+    info.pCommandBuffers = &buff;
+    
+    vkEndCommandBuffer(buff);
+    vkQueueSubmit(q, 1, &info, NULL);
+    vkQueueWaitIdle(q); //TODO::Use fence instead 
+    vkFreeCommandBuffers(_vkdata.dvc, handle, 1, &buff);
+}
+
+
+
