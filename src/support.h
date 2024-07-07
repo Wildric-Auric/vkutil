@@ -38,4 +38,6 @@ namespace VulkanSupport {
     i32  selSrfcFmt(const SwpchainCap&);
 
     VkPresentModeKHR selPresent();
+
+    ui32 findMem(VulkanData&,ui32 memTypeBits, VkMemoryPropertyFlags memProp);
 }

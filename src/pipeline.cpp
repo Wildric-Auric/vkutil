@@ -1,5 +1,6 @@
 #include "pipeline.h"
 #include "params.h"
+#include "vertex.h"
 
 VkResult Pipeline::create(const VulkanData& vkdata) {
     _vkdata = vkdata;
@@ -21,7 +22,12 @@ VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo() {
     inputAsmState.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAsmState.primitiveRestartEnable = VK_FALSE;
 
-    depthState.depthTestEnable = VK_TRUE;
+    rasterState.cullMode  = VK_CULL_MODE_NONE;
+    rasterState.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterState.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterState.lineWidth   = 1.0f;
+
+    depthState.depthTestEnable =  VK_TRUE;
     depthState.depthWriteEnable = VK_TRUE;
     depthState.depthCompareOp   = VK_COMPARE_OP_LESS;
     depthState.depthBoundsTestEnable = VK_FALSE;
@@ -33,6 +39,7 @@ VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo() {
     _colBlendAtt.blendEnable  = VK_FALSE;
     _colBlendAtt.colorWriteMask  = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT; 
     _colBlendAtt.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    _colBlendAtt.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
     _colBlendAtt.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     _colBlendAtt.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     _colBlendAtt.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
@@ -64,6 +71,15 @@ VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo() {
     layoutCrtInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     layoutCrtInfo.setLayoutCount = 0;
 
+    //TODO::Maybe not have default? 
+    arch temp0;
+    vrtxInputState.pVertexAttributeDescriptions    = Vertex::setAttribs(&temp0);
+    vrtxInputState.vertexAttributeDescriptionCount = temp0;
+    vrtxInputState.pVertexBindingDescriptions      = Vertex::setBindings(&temp0);
+    vrtxInputState.vertexBindingDescriptionCount   = temp0;
+
+    //---
+
     crtInfo.sType      = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     crtInfo.stageCount          = 0;
     crtInfo.pStages             = NULL;
@@ -74,6 +90,7 @@ VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo() {
     crtInfo.pColorBlendState    = &blendState;
     crtInfo.pDynamicState       = &_dynState;
     crtInfo.pViewportState      = &viewportState;
+    crtInfo.pRasterizationState = &rasterState;
     crtInfo.layout              = NULL;
     crtInfo.renderPass          = NULL;
     crtInfo.subpass             = 0;
