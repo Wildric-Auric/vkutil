@@ -17,7 +17,6 @@ public:
 class Swapchain {
     public:
         VkResult create(const VulkanData& vkdata, const Window& win, Renderpass rdrpass);
-        void recreate();
         void dstr();
 
         void chooseExtent(const Window& win, const VkSurfaceCapabilitiesKHR& cap, VkExtent2D* const outExt  );
