@@ -2,6 +2,7 @@
 #include "vkdecl.h"
 #include "globals.h"
 
+//TODO::an abstraction for command buffer, abstracting queue submission, a comamnd buffer must have 
 class CmdBufferPool {
 public:
 

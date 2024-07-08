@@ -22,8 +22,8 @@ VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo() {
     inputAsmState.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAsmState.primitiveRestartEnable = VK_FALSE;
 
-    rasterState.cullMode  = VK_CULL_MODE_NONE;
-    rasterState.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterState.cullMode    = VK_CULL_MODE_BACK_BIT;
+    rasterState.frontFace   = VK_FRONT_FACE_CLOCKWISE;
     rasterState.polygonMode = VK_POLYGON_MODE_FILL;
     rasterState.lineWidth   = 1.0f;
 

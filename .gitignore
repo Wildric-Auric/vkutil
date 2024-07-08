@@ -1,0 +1,8 @@
+vendor/
+build/
+.clangd
+res/model.obj
+res/s.obj
+res/s.png
+res/tex.jpg
+res/viking_room.png
