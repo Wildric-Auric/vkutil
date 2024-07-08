@@ -2,6 +2,7 @@
 #include "vulkan/vulkan.h"
 #include "nwin/window.h"
 
+
 #define VK_STR_VALIDATION_LAYER "VK_LAYER_KHRONOS_validation"
 
 typedef NWin::Window* pWin;
@@ -14,7 +15,15 @@ struct VulkanData {
 };
 
 //crtInfo can be modified befored calling VkApp::init() so that it window be customized 
-struct Window {
+class Window {
+    public:
     NWin::WindowCrtInfo crtInfo; //creation info
-    pWin ptr = nullptr;
+    pWin ptr        = nullptr;
+    bool _rszsignal = false; 
+
+    bool getRszSignal();
+    bool consumesignal();
+
+    static Window* cur;
+    static void   rszcallback(NWin::winHandle handle, NWin::Vec2 size);
 };

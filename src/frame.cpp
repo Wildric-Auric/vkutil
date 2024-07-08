@@ -12,6 +12,7 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
 
     VulkanSupport::SwpchainCap spec;
     _vkdata = vkdata;
+    
     VulkanSupport::getSwapchaincap(_vkdata, spec);
     srfcFmt = spec.srfcFormats[VulkanSupport::selSrfcFmt(spec)];
 
@@ -97,6 +98,7 @@ void Swapchain::chooseExtent(const Window& win, const VkSurfaceCapabilitiesKHR& 
 }
 
 void Swapchain::dstr() {
+    vkDeviceWaitIdle(_vkdata.dvc);
     for (arch i = 0; i < imgs.size(); ++i) {
         views[i].dstr();
         fmbuffs[i].dstr();

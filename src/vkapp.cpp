@@ -7,11 +7,30 @@
 #include "io.h"
 #include "vertex.h"
 
+#include <vulkan/vk_enum_string_helper.h>
 
+
+
+Window* Window::cur = nullptr;
+void Window::rszcallback(NWin::winHandle handle, NWin::Vec2 size) {
+    Window::cur->_rszsignal = true; 
+}
+
+bool Window::getRszSignal() {
+    return _rszsignal;
+}
+
+bool Window::consumesignal() {
+    bool res = _rszsignal; 
+    _rszsignal = false;
+    return res;
+}
 i32 Vkapp::init() {
     //Open window
     win.crtInfo.metrics.size = {500, 500};
     win.ptr = NWin::Window::stCreateWindow(win.crtInfo);    
+    Window::cur = &win;
+    win.ptr->setResizeCallback(Window::rszcallback);
     if (!win.ptr) {return 1;}
     initVkData();
    
@@ -245,9 +264,27 @@ i32 Vkapp::loop() {
     vobj.create(data, gfxCmdPool, (float*)strides,  sizeof(strides) );
     vobj.createIndexBuff(data, gfxCmdPool, indices, sizeof(indices));
 
+    VkResult res;
     while (win.ptr->shouldLoop()) {
         vkWaitForFences(data.dvc, 1, &frame.fenQueueSubmitComplete, VK_TRUE, UINT64_MAX);
-        vkAcquireNextImageKHR(data.dvc, swpchain.handle, UINT64_MAX, frame.semImgAvailable, VK_NULL_HANDLE, &swpIndex);
+
+        res = vkAcquireNextImageKHR(data.dvc, swpchain.handle, UINT64_MAX, frame.semImgAvailable, VK_NULL_HANDLE, &swpIndex);
+
+        if (res == VK_ERROR_OUT_OF_DATE_KHR) { 
+            swpchain.dstr();
+            NWin::Vec2 size;
+            win.ptr->getDrawAreaSize(size);
+            while (size.x == 0 || size.y == 0) {
+                win.ptr->update();
+                win.ptr->getDrawAreaSize(size);
+            }
+            swpchain.create(data, win, renderpass);
+            rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
+            win.ptr->_getKeyboard().update();
+            win.ptr->update();
+            continue;
+        }
+
         //TODO::RECREATE SWAPCHAIN IF OUT OF DATE
         vkResetFences(data.dvc, 1, &frame.fenQueueSubmitComplete);
 
@@ -284,7 +321,21 @@ i32 Vkapp::loop() {
         vkEndCommandBuffer(cmdBuff);
 
         vkQueueSubmit(gfxQueue, 1, &submitInfo, frame.fenQueueSubmitComplete); 
-        vkQueuePresentKHR(preQueue, &preInfo);
+        
+
+        res = vkQueuePresentKHR(preQueue, &preInfo);
+        
+        if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || win.consumesignal()) {
+            swpchain.dstr();
+            NWin::Vec2 size;
+            win.ptr->getDrawAreaSize(size);
+            while (size.x == 0 || size.y == 0) {
+                win.ptr->update();
+                win.ptr->getDrawAreaSize(size);
+            }
+            swpchain.create(data, win, renderpass);
+            rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
+        }
  
         win.ptr->_getKeyboard().update();
         win.ptr->update();
