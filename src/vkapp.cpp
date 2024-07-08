@@ -10,6 +10,7 @@
 
 i32 Vkapp::init() {
     //Open window
+    win.crtInfo.metrics.size = {500, 500};
     win.ptr = NWin::Window::stCreateWindow(win.crtInfo);    
     if (!win.ptr) {return 1;}
     initVkData();
@@ -229,12 +230,20 @@ i32 Vkapp::loop() {
 
     VertexObject vobj;
     VertexData strides[] = {
-        { {-1.0, -1.0, .0}, {0.0, 0.0} },
-        { { 1.0, -1.0, 0.0}, {1.0, 0.0} },
-        { {-1.0,  1.0, 0.0}, {0.0, 1.0} },
+        { {-0.5, -0.5, .0}, {0.0, 0.0} },
+        { { 0.5, -0.5, 0.0}, {1.0, 0.0} },    
+        { {-0.5,  0.5, 0.0}, {0.0, 1.0} },
+        { { 0.5,  0.5, 0.0}, {1.0, 1.0} }
+
+    };
+
+    ui32 indices[] = {
+        0,1,2,
+        2,1,3
     };
 
     vobj.create(data, gfxCmdPool, (float*)strides,  sizeof(strides) );
+    vobj.createIndexBuff(data, gfxCmdPool, indices, sizeof(indices));
 
     while (win.ptr->shouldLoop()) {
         vkWaitForFences(data.dvc, 1, &frame.fenQueueSubmitComplete, VK_TRUE, UINT64_MAX);
@@ -249,25 +258,27 @@ i32 Vkapp::loop() {
         vkCmdBeginRenderPass(cmdBuff, &rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
         vkCmdBindPipeline(cmdBuff, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
       
+        //Dynamic states 
+        NWin::Vec2 s;
+        win.ptr->getDrawAreaSize(size);
+        VkViewport viewport;
+        VkRect2D   scissor;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width =  size.x;
+        viewport.height = size.y;
+        scissor.extent =  {(ui32)viewport.width, (ui32)viewport.height};
+        scissor.offset = { 0,0 };
+        vkCmdSetViewport(cmdBuff, 0, 1, &viewport);
+        vkCmdSetScissor(cmdBuff, 0, 1, &scissor);
+
         VkDeviceSize voff = 0;
-        
-VkViewport viewport;
-VkRect2D   scissor;
-viewport.minDepth = 0.0f;
-viewport.maxDepth = 1.0f;
-viewport.x = 0.0f;
-viewport.y = 0.0f;
-viewport.width =  400;
-viewport.height = 400;
-scissor.extent =  {(ui32)viewport.width, (ui32)viewport.height};
-scissor.offset = { 0,0 };
-
-vkCmdSetViewport(cmdBuff, 0, 1, &viewport);
-vkCmdSetScissor(cmdBuff, 0, 1, &scissor);
-
-
         vkCmdBindVertexBuffers(cmdBuff, 0, 1, &vobj.buff.handle, &voff);
-        vkCmdDraw(cmdBuff, sizeof(strides) / sizeof(VertexData) , 1, 0, 0);
+        vkCmdBindIndexBuffer(cmdBuff, vobj.indexBuff.handle, voff, VkIndexType::VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmdBuff, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
+        //vkCmdDraw(cmdBuff, sizeof(strides) / sizeof(VertexData) , 1, 0, 0);
 
         vkCmdEndRenderPass(cmdBuff);
         vkEndCommandBuffer(cmdBuff);
@@ -279,9 +290,7 @@ vkCmdSetScissor(cmdBuff, 0, 1, &scissor);
         win.ptr->update();
     }
     
-    vkQueueWaitIdle(gfxQueue);
-    gfxCmdPool.freeCmdBuff(cmdBuff);
-
+    vkQueueWaitIdle(gfxQueue); gfxCmdPool.freeCmdBuff(cmdBuff);
     vobj.dstr();
 
     return 0;

@@ -30,7 +30,7 @@ class VertexObject {
     public:
 
     void create(const VulkanData& vkdata, CmdBufferPool pool, float* strides, ui32 size, bool isDynamic = false);
-    void createIndexBuff(const VulkanData& vkdata, CmdBufferPool, float* indexArray, ui32 size, bool isDynamic);
+    void createIndexBuff(const VulkanData& vkdata, CmdBufferPool, ui32* indexArray, ui32 size, bool isDynamic = false);
     void dstr();
 
     VulkanData _vkdata;
