@@ -32,7 +32,10 @@ namespace VulkanSupport {
 
     VkPhysicalDevice selPhyDvc(VkPhysicalDevice* arr, ui32 count);
 
-    void findQueues(QueueFamIndices&, VulkanData&);
+    void findQueues(QueueFamIndices&, const VulkanData&);
+
+    VkQueue getQueue(const VulkanData& _vkdata, i32 off);
+   
     //Swapchain related
     void getSwapchaincap(VulkanData&, SwpchainCap&);
     i32  selSrfcFmt(const SwpchainCap&);

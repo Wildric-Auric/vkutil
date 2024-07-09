@@ -57,10 +57,13 @@ void Buffer::cpyFrom(CmdBufferPool pool, const Buffer& other) {
     cpyRgn.srcOffset = 0;
     cpyRgn.dstOffset = 0;
     cpyRgn.size      = other._size;
-    VkCommandBuffer buff;
-    buff = 
-    pool.execBegin();
-    vkCmdCopyBuffer(buff, other.handle, handle, 1, &cpyRgn);
+
+    CmdBuff buff;
+
+    pool.execBegin(&buff, offsetof(VulkanSupport::QueueFamIndices, gfx) );
+
+    vkCmdCopyBuffer(buff.handle, other.handle, handle, 1, &cpyRgn);
+
     pool.execEnd(buff);
 }
 

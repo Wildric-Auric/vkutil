@@ -86,7 +86,7 @@ namespace VulkanSupport {
         return arr[0];
     }
     
-    void findQueues(QueueFamIndices& ind, VulkanData& vkdata) {
+    void findQueues(QueueFamIndices& ind, const VulkanData& vkdata) {
         ui32 count; 
         VkBool32                sup;
         VkQueueFamilyProperties prop;
@@ -108,6 +108,16 @@ namespace VulkanSupport {
             }
         }
         delete[] famArr;
+    }
+
+    VkQueue getQueue(const VulkanData& _vkdata, i32 off) {
+        VkQueue q;
+        VulkanSupport::QueueFamIndices qfam; 
+        VulkanSupport::findQueues(qfam, _vkdata);
+        i32 index     = *(i32*)((arch)(&qfam) + off);
+
+        vkGetDeviceQueue(_vkdata.dvc, index, 0, &q);
+        return q;
     }
     
     void getSwapchaincap(VulkanData& vkdata, SwpchainCap& capRef) {

@@ -194,7 +194,7 @@ int Vkapp::initVkData() {
 //This whole method is to be refactored, locality and verbosity here are only for the sake of testing
 //TODO::Submission to queue must in 
 i32 Vkapp::loop() {
-    VkCommandBuffer cmdBuff; 
+    CmdBuff                  cmdBuff; 
     VkCommandBufferBeginInfo beginInfo{};
     VkRenderPassBeginInfo    rdrpassInfo{};
     VkSubmitInfo             submitInfo{};
@@ -202,7 +202,9 @@ i32 Vkapp::loop() {
 
     ui32 swpIndex; 
 
-    gfxCmdPool.allocCmdBuff(&cmdBuff, 1); 
+    VkQueue q = VulkanSupport::getQueue(data, offsetof(VulkanSupport::QueueFamIndices, gfx));
+
+    gfxCmdPool.allocCmdBuff(&cmdBuff, q); 
 
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = NULL;
@@ -223,7 +225,7 @@ i32 Vkapp::loop() {
 
     submitInfo.sType =  VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount   = 1;
-    submitInfo.pCommandBuffers      = &cmdBuff;
+    submitInfo.pCommandBuffers      = &cmdBuff.handle;
     submitInfo.waitSemaphoreCount   = 1;
 
     submitInfo.pWaitSemaphores    = &frame.semImgAvailable;
@@ -288,39 +290,42 @@ i32 Vkapp::loop() {
         //TODO::RECREATE SWAPCHAIN IF OUT OF DATE
         vkResetFences(data.dvc, 1, &frame.fenQueueSubmitComplete);
 
-        vkResetCommandBuffer(cmdBuff, 0);
-        vkBeginCommandBuffer(cmdBuff, &beginInfo);
+        vkResetCommandBuffer(cmdBuff.handle, 0);
+        vkBeginCommandBuffer(cmdBuff.handle, &beginInfo);
         
         rdrpassInfo.framebuffer = swpchain.fmbuffs[swpIndex].handle;
-        vkCmdBeginRenderPass(cmdBuff, &rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
-        vkCmdBindPipeline(cmdBuff, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
+        vkCmdBeginRenderPass(cmdBuff.handle, &rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
+        vkCmdBindPipeline(cmdBuff.handle, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
       
         //Dynamic states 
         NWin::Vec2 s;
         win.ptr->getDrawAreaSize(size);
+
+        //TODO::The spec states Viewport size must be greater than 0, handle minimization so that viewport isn't to 0, validation layers on Intel
+        //Don't report that
         VkViewport viewport;
         VkRect2D   scissor;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width =  size.x;
-        viewport.height = size.y;
+        viewport.width =  Max<i32>(size.x, 5.0);
+        viewport.height = Max<i32>(size.y, 5.0);
         scissor.extent =  {(ui32)viewport.width, (ui32)viewport.height};
         scissor.offset = { 0,0 };
-        vkCmdSetViewport(cmdBuff, 0, 1, &viewport);
-        vkCmdSetScissor(cmdBuff, 0, 1, &scissor);
+        vkCmdSetViewport(cmdBuff.handle, 0, 1, &viewport);
+        vkCmdSetScissor(cmdBuff.handle, 0, 1, &scissor);
 
         VkDeviceSize voff = 0;
-        vkCmdBindVertexBuffers(cmdBuff, 0, 1, &vobj.buff.handle, &voff);
-        vkCmdBindIndexBuffer(cmdBuff, vobj.indexBuff.handle, voff, VkIndexType::VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(cmdBuff, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
+        vkCmdBindVertexBuffers(cmdBuff.handle, 0, 1, &vobj.buff.handle, &voff);
+        vkCmdBindIndexBuffer(cmdBuff.handle, vobj.indexBuff.handle, voff, VkIndexType::VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmdBuff.handle, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
         //vkCmdDraw(cmdBuff, sizeof(strides) / sizeof(VertexData) , 1, 0, 0);
 
-        vkCmdEndRenderPass(cmdBuff);
-        vkEndCommandBuffer(cmdBuff);
+        vkCmdEndRenderPass(cmdBuff.handle);
+        vkEndCommandBuffer(cmdBuff.handle);
 
-        vkQueueSubmit(gfxQueue, 1, &submitInfo, frame.fenQueueSubmitComplete); 
+        vkQueueSubmit(cmdBuff.queue, 1, &submitInfo ,frame.fenQueueSubmitComplete);
         
 
         res = vkQueuePresentKHR(preQueue, &preInfo);
@@ -341,7 +346,8 @@ i32 Vkapp::loop() {
         win.ptr->update();
     }
     
-    vkQueueWaitIdle(gfxQueue); gfxCmdPool.freeCmdBuff(cmdBuff);
+    vkQueueWaitIdle(gfxQueue); 
+    gfxCmdPool.freeCmdBuff(cmdBuff);
     vobj.dstr();
 
     return 0;
@@ -370,5 +376,3 @@ i32 Vkapp::dstr() {
 
     return 0;
 }
-
-

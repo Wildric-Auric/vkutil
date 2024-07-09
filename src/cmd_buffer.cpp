@@ -19,24 +19,25 @@ void     CmdBufferPool::dstr() {
 }
 
 
-VkResult CmdBufferPool::allocCmdBuff(VkCommandBuffer* outarr, ui32 arrLen) {
-  VkCommandBufferAllocateInfo allocInfo{};
-  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocInfo.commandPool = handle;
-  allocInfo.commandBufferCount = arrLen; 
- 
-  return vkAllocateCommandBuffers(_vkdata.dvc, &allocInfo, outarr);
+VkResult CmdBufferPool::allocCmdBuff(CmdBuff* outBuff, VkQueue queue) {
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = handle;
+    allocInfo.commandBufferCount = 1; 
+    outBuff->queue = queue;
+    return vkAllocateCommandBuffers(_vkdata.dvc, &allocInfo, &outBuff->handle);
 }
 
-void CmdBufferPool::freeCmdBuff(VkCommandBuffer cmdBuff) {
-    vkFreeCommandBuffers(_vkdata.dvc, handle, 1, &cmdBuff);
+void CmdBufferPool::freeCmdBuff(const CmdBuff& cmdBuff) {
+    vkFreeCommandBuffers(_vkdata.dvc, handle, 1, &cmdBuff.handle);
 }
 
-VkCommandBuffer CmdBufferPool::execBegin() {
+void CmdBufferPool::execBegin(CmdBuff* outBuff, i32 index) {
     VkCommandBufferAllocateInfo allocInfo{};
     VkCommandBufferBeginInfo beginInfo{};
     VkCommandBuffer buff;
+    VkQueue q;
 
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -50,28 +51,25 @@ VkCommandBuffer CmdBufferPool::execBegin() {
 
     vkBeginCommandBuffer(buff, &beginInfo);
 
-    return buff;
+    q = VulkanSupport::getQueue(_vkdata, index);
+
+    outBuff->handle = buff;
+    outBuff->queue  = q;
+    return; 
 }
 
-void CmdBufferPool::execEnd(VkCommandBuffer buff, i32 index) {
-    VkQueue q;
-    VkSubmitInfo info{};
-    if (index == -1) {
-        VulkanSupport::QueueFamIndices qfam; 
-        VulkanSupport::findQueues(qfam, _vkdata);
-        index = qfam.gfx;
-    }
-    vkGetDeviceQueue(_vkdata.dvc, index, 0, &q);
+void CmdBufferPool::execEnd(CmdBuff& buff) { 
+    vkEndCommandBuffer(buff.handle);
+    buff.submit();
+    vkQueueWaitIdle(buff.queue); //TODO::Use fence instead 
+    vkFreeCommandBuffers(_vkdata.dvc, handle, 1, &buff.handle);
+}
 
+
+VkResult CmdBuff::submit(VkFence fence) {
+    VkSubmitInfo info{};
     info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     info.commandBufferCount = 1;
-    info.pCommandBuffers = &buff;
-    
-    vkEndCommandBuffer(buff);
-    vkQueueSubmit(q, 1, &info, NULL);
-    vkQueueWaitIdle(q); //TODO::Use fence instead 
-    vkFreeCommandBuffers(_vkdata.dvc, handle, 1, &buff);
+    info.pCommandBuffers = &handle; 
+    return vkQueueSubmit(queue, 1, &info, fence);
 }
-
-
-
