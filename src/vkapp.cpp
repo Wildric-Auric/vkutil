@@ -25,6 +25,7 @@ bool Window::consumesignal() {
     _rszsignal = false;
     return res;
 }
+
 i32 Vkapp::init() {
     //Open window
     win.crtInfo.metrics.size = {500, 500};
@@ -65,10 +66,15 @@ i32 Vkapp::init() {
     VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, data);
     VK_CHECK_EXTENDED(gfxCmdPool.create(data, qfam.gfx), "command pool");
 
+    VK_CHECK_EXTENDED(descPool.create(data), "Descriptor pool");
+
     pipeline.fillCrtInfo();
     pipeline.crtInfo.stageCount = 2;
     pipeline.crtInfo.pStages    = stages;
     pipeline.crtInfo.renderPass = renderpass.handle;
+
+    pipeline.layoutCrtInfo.setLayoutCount = 1;
+    pipeline.layoutCrtInfo.pSetLayouts    = &descPool._lytHandle;
 
     VK_CHECK_EXTENDED(pipeline.create(data), "Failed to create Pipeline");
     
@@ -199,9 +205,25 @@ i32 Vkapp::loop() {
     VkRenderPassBeginInfo    rdrpassInfo{};
     VkSubmitInfo             submitInfo{};
     VkPresentInfoKHR         preInfo{};
+    DescSet                  descSet{};
 
     ui32 swpIndex; 
-
+    //-----
+    float color = 0.5;
+    UniBuff unf;
+    //descPool._lytBindings.pop_back();
+    unf.create(data, sizeof(color));
+    descPool.allocDescSet(&descSet);
+    VkWriteDescriptorSet wrt{};
+    VkDescriptorBufferInfo inf{};
+    inf.buffer      = unf._buff.handle; inf.range       = unf._buff._size;
+    wrt.pBufferInfo = &inf; 
+    wrt.descriptorCount = 1;
+    wrt.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    
+    descSet.wrt(&wrt, 0);
+    unf.wrt(&color);
+    //-----
     VkQueue q = VulkanSupport::getQueue(data, offsetof(VulkanSupport::QueueFamIndices, gfx));
 
     gfxCmdPool.allocCmdBuff(&cmdBuff, q); 
@@ -317,6 +339,11 @@ i32 Vkapp::loop() {
         vkCmdSetScissor(cmdBuff.handle, 0, 1, &scissor);
 
         VkDeviceSize voff = 0;
+        color += 0.01;
+        if (color > 1.0)
+            color = 0.0;
+        unf.wrt(&color);
+        vkCmdBindDescriptorSets(cmdBuff.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline._layout, 0, 1, &descSet.handle, 0, nullptr);
         vkCmdBindVertexBuffers(cmdBuff.handle, 0, 1, &vobj.buff.handle, &voff);
         vkCmdBindIndexBuffer(cmdBuff.handle, vobj.indexBuff.handle, voff, VkIndexType::VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmdBuff.handle, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
@@ -349,6 +376,7 @@ i32 Vkapp::loop() {
     vkQueueWaitIdle(gfxQueue); 
     gfxCmdPool.freeCmdBuff(cmdBuff);
     vobj.dstr();
+    unf.dstr();
 
     return 0;
 }
@@ -363,6 +391,8 @@ i32 Vkapp::dstr() {
     renderpass.dstr();
 
     gfxCmdPool.dstr();
+
+    descPool.dstr();
 
     pipeline.dstr();
 

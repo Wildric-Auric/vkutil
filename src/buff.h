@@ -26,3 +26,13 @@ public:
     VkBufferCreateInfo    crtInfo{};
     VkMemoryPropertyFlags memProp = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 };
+//Basically a buffer in host memory
+class UniBuff {
+    public:
+    VkResult create(const VulkanData&, ui32 uniformSize);
+    void     dstr();   
+    void     wrt(void* uniformStruct);
+
+    Buffer _buff;
+    void*  _mapped = nullptr;
+};

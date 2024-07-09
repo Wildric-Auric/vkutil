@@ -72,3 +72,22 @@ void Buffer::cpyTo(CmdBufferPool pool, Buffer& other) {
 }
 
 
+VkResult UniBuff::create(const VulkanData& vkdata, ui32 uniformSize) {
+    _buff.fillCrtInfo();
+    _buff.memProp = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    _buff.crtInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT; 
+    VkResult res = _buff.create(vkdata, uniformSize);
+    _buff.mapMem(&_mapped);
+    return res;
+}
+
+void     UniBuff::dstr() {
+    _buff.unmapMem(&_mapped);
+    _buff.dstr();
+}
+
+void     UniBuff::wrt(void* uniformStruct) {
+    _buff.wrt(_mapped, uniformStruct, _buff._size);
+}
+
+

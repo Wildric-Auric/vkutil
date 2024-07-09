@@ -7,6 +7,7 @@
 #include "frame.h"
 #include "pipeline.h"
 #include "cmd_buffer.h"
+#include "desc.h"
 
 class Vkapp {
 public: 
@@ -37,4 +38,5 @@ public:
     Pipeline      pipeline;
     Renderpass    renderpass;
     CmdBufferPool gfxCmdPool;
+    DescPool      descPool;
 };
