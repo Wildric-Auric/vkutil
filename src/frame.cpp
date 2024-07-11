@@ -62,14 +62,14 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
     vkGetSwapchainImagesKHR(vkdata.dvc, handle, &imgCount, nullptr);
     imgs.resize(imgCount);
     vkGetSwapchainImagesKHR(vkdata.dvc, handle, &imgCount, imgs.data());
-
+    img fake;
     //Create swapchaine image views and framebuffers
     views.resize(imgCount);
     fmbuffs.resize(imgCount);
     for (arch i = 0; i < imgCount; ++i) {
-        views[i].fillCrtInfo();
-        views[i].crtInfo.format = srfcFmt.format;
-        views[i].crtInfo.image  = imgs[i];
+        fake.crtInfo.format = srfcFmt.format;
+        fake.handle         = imgs[i];
+        views[i].fillCrtInfo(fake);
         views[i].create(_vkdata);
 
         fmbuffs[i].fillCrtInfo();

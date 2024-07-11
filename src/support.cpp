@@ -158,4 +158,11 @@ namespace VulkanSupport {
         }
         return -1;
     }
+    
+    float getMaxAniso(const VulkanData& vkdata) {
+        VkPhysicalDeviceProperties prop;
+        vkGetPhysicalDeviceProperties( vkdata.phyDvc,  &prop);
+        return prop.limits.maxSamplerAnisotropy;
+    }
+
 }

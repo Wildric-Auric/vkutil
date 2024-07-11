@@ -7,6 +7,10 @@
 #include "io.h"
 #include "vertex.h"
 
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb/stb_image.h"
+
 #include <vulkan/vk_enum_string_helper.h>
 
 
@@ -206,8 +210,44 @@ i32 Vkapp::loop() {
     VkSubmitInfo             submitInfo{};
     VkPresentInfoKHR         preInfo{};
     DescSet                  descSet{};
-
     ui32 swpIndex; 
+
+    //Creating image texture
+    ui32 imgsize;
+    ivec2 vecsize;
+    i32   channels; 
+    stbi_uc* pixels = stbi_load("../res/tex.jpg", &vecsize.x, &vecsize.y, &channels, STBI_rgb_alpha);
+    imgsize = vecsize.x * vecsize.y * 4;
+
+    Sampler smpler;
+    smpler.fillCrtInfo(data);
+    smpler.create(data);
+
+    Buffer tempImg;
+    img    img0;
+    imgView view;
+
+    tempImg.fillCrtInfo();
+    tempImg.crtInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    tempImg.memProp       = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    tempImg.create(data, imgsize);
+    void* mapped;
+    tempImg.mapMem(&mapped);
+    memcpy(mapped, pixels, imgsize);
+    tempImg.unmapMem(&mapped);
+
+    img0.fillCrtInfo();
+    img0.crtInfo.usage         = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    img0.crtInfo.extent.width  = vecsize.x;
+    img0.crtInfo.extent.height = vecsize.y;
+    img0.create(data);
+
+    img0.cpyFrom(gfxCmdPool, tempImg, vecsize, 0);
+
+    view.fillCrtInfo(img0);
+    view.create(data);
+
+    img0.changeLyt(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, gfxCmdPool);
     //-----
     float color = 0.5;
     UniBuff unf;
@@ -215,13 +255,26 @@ i32 Vkapp::loop() {
     unf.create(data, sizeof(color));
     descPool.allocDescSet(&descSet);
     VkWriteDescriptorSet wrt{};
+
     VkDescriptorBufferInfo inf{};
     inf.buffer      = unf._buff.handle; inf.range       = unf._buff._size;
     wrt.pBufferInfo = &inf; 
     wrt.descriptorCount = 1;
     wrt.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    
     descSet.wrt(&wrt, 0);
+
+    VkDescriptorImageInfo imInf{};
+    imInf.sampler     = smpler.handle;
+    imInf.imageView   = view.handle;
+    imInf.imageLayout = img0.crtInfo.initialLayout; 
+    
+    wrt = VkWriteDescriptorSet{};
+    wrt.descriptorCount = 1;
+    wrt.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    wrt.pImageInfo      = &imInf;
+    
+    descSet.wrt(&wrt, 1);
+
     unf.wrt(&color);
     //-----
     VkQueue q = VulkanSupport::getQueue(data, offsetof(VulkanSupport::QueueFamIndices, gfx));
@@ -377,7 +430,10 @@ i32 Vkapp::loop() {
     gfxCmdPool.freeCmdBuff(cmdBuff);
     vobj.dstr();
     unf.dstr();
-
+    smpler.dstr();
+    tempImg.dstr();
+    img0.dstr();
+    view.dstr();
     return 0;
 }
 
@@ -406,3 +462,4 @@ i32 Vkapp::dstr() {
 
     return 0;
 }
+

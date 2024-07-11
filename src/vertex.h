@@ -1,3 +1,4 @@
+#pragma once
 #include "vkdecl.h"
 #include "globals.h"
 #include "buff.h"

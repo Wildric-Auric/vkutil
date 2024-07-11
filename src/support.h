@@ -43,4 +43,7 @@ namespace VulkanSupport {
     VkPresentModeKHR selPresent();
 
     ui32 findMem(VulkanData&,ui32 memTypeBits, VkMemoryPropertyFlags memProp);
+
+    float getMaxAniso(const VulkanData& vkdata);
+
 }

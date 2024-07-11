@@ -1,17 +1,18 @@
 #include "vkimg.h"
 #include "params.h"
+#include "support.h"
 
- VkImageViewCreateInfo& imgView::fillCrtInfo() {
-    crtInfo.sType  = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    crtInfo.format = VK_FORMAT_R8G8B8_SRGB;
-    crtInfo.image  = VK_NULL_HANDLE;
-    crtInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+ VkImageViewCreateInfo& imgView::fillCrtInfo(const img& im) {
+    crtInfo.sType        = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    crtInfo.format       = im.crtInfo.format;
+    crtInfo.image        = im.handle;
+    crtInfo.viewType     = VK_IMAGE_VIEW_TYPE_2D;
     crtInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
     crtInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
     crtInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
     crtInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY; 
-    crtInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    crtInfo.subresourceRange.baseMipLevel = 0;
+    crtInfo.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    crtInfo.subresourceRange.baseMipLevel   = 0;
     crtInfo.subresourceRange.baseArrayLayer = 0;
     crtInfo.subresourceRange.layerCount     = 1;
     crtInfo.subresourceRange.levelCount     = 1;
@@ -31,7 +32,7 @@ void imgView::dstr() {
 VkImageCreateInfo& img::fillCrtInfo() {
     crtInfo.sType     = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     crtInfo.imageType = VK_IMAGE_TYPE_2D;
-    crtInfo.format    = VK_FORMAT_R8G8B8_SRGB;
+    crtInfo.format    = VK_FORMAT_R8G8B8A8_SRGB;
     crtInfo.tiling    = VK_IMAGE_TILING_OPTIMAL;
     crtInfo.extent.width  = 0;
     crtInfo.extent.height = 0;
@@ -46,12 +47,26 @@ VkImageCreateInfo& img::fillCrtInfo() {
 };
 
 VkResult img::create(const VulkanData& vkdata) {
+    VkMemoryRequirements memReq;
+    VkMemoryAllocateInfo allocInfo{};
     _vkdata = vkdata;
-    return vkCreateImage(vkdata.dvc, &crtInfo, nullptr, &handle);
+
+    VkResult res = vkCreateImage(vkdata.dvc, &crtInfo, nullptr, &handle);
+    
+    vkGetImageMemoryRequirements(_vkdata.dvc, handle, &memReq);
+
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex = VulkanSupport::findMem(_vkdata, memReq.memoryTypeBits, memProp);
+
+    vkAllocateMemory(vkdata.dvc, &allocInfo, nullptr, &_mem);
+    vkBindImageMemory(vkdata.dvc, handle, _mem, 0);
+    return res;
 }
 
 void img::dstr() {
     vkDestroyImage(_vkdata.dvc, handle, nullptr);
+    vkFreeMemory(_vkdata.dvc, _mem, nullptr);
 }
 
 VkFramebufferCreateInfo& Framebuffer::fillCrtInfo() {
@@ -74,9 +89,121 @@ void Framebuffer::dstr() {
     vkDestroyFramebuffer(_vkdata.dvc, handle, nullptr);
 }
 
+VkResult img::changeLyt(VkImageLayout newlyt, CmdBufferPool& p) {
+    VkImageLayout oldlyt = crtInfo.initialLayout;
+    if (oldlyt == newlyt) 
+        return VK_SUCCESS;
+
+    VkImageMemoryBarrier barrier{};
+    VkPipelineStageFlags srcStage;
+    VkPipelineStageFlags dstStage;
 
 
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = crtInfo.initialLayout;
+    barrier.newLayout = newlyt; 
+    barrier.image     = handle;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel   = 0;
+    barrier.subresourceRange.levelCount     = crtInfo.mipLevels;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount     = 1;
+
+    barrier.subresourceRange.aspectMask = newlyt == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL ? 
+                                        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT : 
+                                        VK_IMAGE_ASPECT_COLOR_BIT;
+    
+    if (oldlyt == VK_IMAGE_LAYOUT_UNDEFINED && newlyt == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT; 
+    }
+
+    else if (oldlyt == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newlyt == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+
+    else if (oldlyt == VK_IMAGE_LAYOUT_UNDEFINED && newlyt == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+
+        srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        dstStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    }
+
+    else if (oldlyt == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newlyt == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+
+        srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        dstStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    }
+    
+    else {
+        return VK_ERROR_UNKNOWN;
+    }
+
+    CmdBuff cmdBuff;
+    crtInfo.initialLayout = newlyt;
+    p.execBegin(&cmdBuff, offsetof(VulkanSupport::QueueFamIndices, gfx));
+    vkCmdPipelineBarrier(cmdBuff.handle, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+    p.execEnd(cmdBuff);
+    return VK_SUCCESS;
+}
+
+void img::cpyFrom(CmdBufferPool& p, Buffer& buff, const ivec2& size, ui32 offset) { 
+    CmdBuff cmdbuff;
+    VkBufferImageCopy rgn{};
+    rgn.imageExtent.width  = size.x;
+    rgn.imageExtent.height = size.y;
+    rgn.imageExtent.depth  = 1;
+    rgn.bufferOffset       = offset;
+
+    rgn.imageSubresource.mipLevel = 0;
+    rgn.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    rgn.imageSubresource.layerCount = 1;
+    rgn.imageSubresource.baseArrayLayer = 0;
+    //Change layout first    
+    changeLyt(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, p);
+    //Cpy
+    p.execBegin(&cmdbuff, offsetof(VulkanSupport::QueueFamIndices, gfx));
+    vkCmdCopyBufferToImage(cmdbuff.handle,
+                           buff.handle, 
+                           handle, crtInfo.initialLayout,
+                           1, &rgn);
+    p.execEnd(cmdbuff);
+}
 
 
+VkResult Sampler::create(const VulkanData& vkdata) {
+    _vkdata = vkdata;
+    return vkCreateSampler(_vkdata.dvc, &crtInfo, nullptr, &handle);
+}
+    
+VkSamplerCreateInfo& Sampler::fillCrtInfo(const VulkanData& vkdata) {
+    crtInfo.sType     = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    crtInfo.minFilter = VK_FILTER_LINEAR;
+    crtInfo.magFilter = VK_FILTER_LINEAR;
+    crtInfo.maxLod    = VK_LOD_CLAMP_NONE;
+    crtInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    crtInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    crtInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    crtInfo.anisotropyEnable = GfxParams::inst.anisotropy != 0;
+    crtInfo.maxAnisotropy    = Min<float>(VulkanSupport::getMaxAniso(vkdata), GfxParams::inst.anisotropy);
+    crtInfo.mipmapMode       = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    crtInfo.borderColor      = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    return crtInfo;
+}
 
 
+void    Sampler::dstr() {
+    vkDestroySampler(_vkdata.dvc, handle, nullptr);
+}

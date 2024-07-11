@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Maths.h"
 
 typedef unsigned char uchar;
