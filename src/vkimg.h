@@ -14,6 +14,10 @@ class img {
     VkResult changeLyt(VkImageLayout newlyt, CmdBufferPool& ); 
 
     void     cpyFrom(CmdBufferPool&, Buffer& buff, const ivec2& size, ui32 offset);
+    
+    void     genmmp(CmdBufferPool&, ui32 queueIndex);
+
+    void setMaxmmplvl();
 
     VkImageCreateInfo crtInfo{};
     VkImage handle  = nullptr;

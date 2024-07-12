@@ -237,17 +237,18 @@ i32 Vkapp::loop() {
     tempImg.unmapMem(&mapped);
 
     img0.fillCrtInfo();
-    img0.crtInfo.usage         = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    img0.crtInfo.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     img0.crtInfo.extent.width  = vecsize.x;
     img0.crtInfo.extent.height = vecsize.y;
+    img0.setMaxmmplvl();
     img0.create(data);
-
     img0.cpyFrom(gfxCmdPool, tempImg, vecsize, 0);
+    img0.genmmp(gfxCmdPool, offsetof(VulkanSupport::QueueFamIndices, gfx));
 
     view.fillCrtInfo(img0);
     view.create(data);
 
-    img0.changeLyt(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, gfxCmdPool);
+    //img0.changeLyt(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, gfxCmdPool);
     //-----
     float color = 0.5;
     UniBuff unf;

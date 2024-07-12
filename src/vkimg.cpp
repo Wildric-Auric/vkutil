@@ -1,4 +1,4 @@
-#include "vkimg.h"
+#include"vkimg.h"
 #include "params.h"
 #include "support.h"
 
@@ -15,7 +15,7 @@
     crtInfo.subresourceRange.baseMipLevel   = 0;
     crtInfo.subresourceRange.baseArrayLayer = 0;
     crtInfo.subresourceRange.layerCount     = 1;
-    crtInfo.subresourceRange.levelCount     = 1;
+    crtInfo.subresourceRange.levelCount     = 1; 
 
     return crtInfo;
 }
@@ -45,6 +45,10 @@ VkImageCreateInfo& img::fillCrtInfo() {
     crtInfo.usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     return crtInfo;
 };
+    
+void img::setMaxmmplvl() {
+    crtInfo.mipLevels    = (int)(Max<float>(std::log2(crtInfo.extent.width), std::log2(crtInfo.extent.height))) + 1;
+}
 
 VkResult img::create(const VulkanData& vkdata) {
     VkMemoryRequirements memReq;
@@ -182,6 +186,76 @@ void img::cpyFrom(CmdBufferPool& p, Buffer& buff, const ivec2& size, ui32 offset
     p.execEnd(cmdbuff);
 }
 
+void img::genmmp(CmdBufferPool& p, ui32 queueIndex) {
+    i32 qoff = offsetof(VulkanSupport::QueueFamIndices, gfx);
+    VkImageMemoryBarrier br{};
+    VkQueue q = VulkanSupport::getQueue(_vkdata, qoff);
+    CmdBuff cmdBuff;
+    ivec2 mipSize = {(i32)crtInfo.extent.width, (i32)crtInfo.extent.height};
+
+    br.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    br.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    br.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    br.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    br.subresourceRange.baseArrayLayer = 0;
+    br.subresourceRange.layerCount     = 1;
+    br.subresourceRange.levelCount     = 1;
+    br.image = handle;
+
+    p.execBegin(&cmdBuff, qoff);
+
+    for (int i = 1; i < crtInfo.mipLevels; ++i) {
+        br.subresourceRange.baseMipLevel = i - 1; 
+        br.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        br.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        br.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        br.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        vkCmdPipelineBarrier(cmdBuff.handle, VK_PIPELINE_STAGE_TRANSFER_BIT , VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0, 0, 0, 0, 0, 1, &br);
+
+        VkImageBlit rgn{};
+
+        rgn.srcOffsets[0] = {0,0,0};
+        rgn.srcOffsets[1] = {mipSize.x, mipSize.y, 1};
+        
+        rgn.srcSubresource.mipLevel = i - 1;
+        rgn.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        rgn.srcSubresource.layerCount = 1;
+
+        mipSize.x = mipSize.x > 1 ? mipSize.x / 2 : mipSize.x;
+        mipSize.y = mipSize.y > 1 ? mipSize.y / 2 : mipSize.y;
+
+        rgn.dstOffsets[0] = {0,0,0};
+        rgn.dstOffsets[1] = {mipSize.x, mipSize.y, 1};
+
+        rgn.dstSubresource.mipLevel = i;
+        rgn.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        rgn.dstSubresource.layerCount = 1;
+        
+        vkCmdBlitImage(cmdBuff.handle, handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, handle , VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                       1, &rgn, VkFilter::VK_FILTER_LINEAR);
+
+        br.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        br.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        br.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        br.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(cmdBuff.handle, VK_PIPELINE_STAGE_TRANSFER_BIT , VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        0, 0, 0, 0, 0, 1, &br);             
+    }
+    
+    br.subresourceRange.baseMipLevel = crtInfo.mipLevels - 1;
+    br.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    br.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    br.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    br.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    vkCmdPipelineBarrier(cmdBuff.handle, VK_PIPELINE_STAGE_TRANSFER_BIT , VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         0, 0, 0, 0, 0, 1, &br);
+    
+    crtInfo.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    p.execEnd(cmdBuff);
+    
+}
 
 VkResult Sampler::create(const VulkanData& vkdata) {
     _vkdata = vkdata;
@@ -192,6 +266,7 @@ VkSamplerCreateInfo& Sampler::fillCrtInfo(const VulkanData& vkdata) {
     crtInfo.sType     = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     crtInfo.minFilter = VK_FILTER_LINEAR;
     crtInfo.magFilter = VK_FILTER_LINEAR;
+    crtInfo.minLod    = 0.0f;
     crtInfo.maxLod    = VK_LOD_CLAMP_NONE;
     crtInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     crtInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -207,3 +282,4 @@ VkSamplerCreateInfo& Sampler::fillCrtInfo(const VulkanData& vkdata) {
 void    Sampler::dstr() {
     vkDestroySampler(_vkdata.dvc, handle, nullptr);
 }
+
