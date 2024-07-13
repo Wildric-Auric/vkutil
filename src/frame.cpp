@@ -4,7 +4,7 @@
 #include "params.h"
 
 
-VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpass rdrpass) {
+VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpass rdrpass, img* depthBuffer) {
     VkResult res;
     VkSwapchainCreateInfoKHR crtInfo{};
     VkSurfaceFormatKHR srfcFmt;
@@ -75,10 +75,22 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
         fmbuffs[i].fillCrtInfo();
         fmbuffs[i].crtInfo.width  = crtInfo.imageExtent.width;
         fmbuffs[i].crtInfo.height = crtInfo.imageExtent.height;
-        //TODO::update this when there is MSAA impl and depth impl
-        VkImageView* att    =  &views[i].handle;
-        ui32         attLen = 1;
-        fmbuffs[i].create(_vkdata, rdrpass.handle, att, attLen);
+        //TODO::update this when there is MSAA impl 
+        imgView dpthView;
+        imgView msaaView;
+        ui32         cur    = 1;
+        ui32         attLen =   1 + (depthBuffer != nullptr);
+        std::vector<VkImageView> att(attLen);
+        att[0]  = views[i].handle;
+        
+        if (depthBuffer) {
+            dpthView.fillCrtInfo(*depthBuffer);
+            dpthView.crtInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            dpthView.create(vkdata);
+            att[cur++] = dpthView.handle;
+        }
+
+        fmbuffs[i].create(_vkdata, rdrpass.handle, att.data(), attLen);
     }
 
     return res;
@@ -106,12 +118,12 @@ void Swapchain::dstr() {
     vkDestroySwapchainKHR(_vkdata.dvc, handle, nullptr);
 }
 
-VkResult Renderpass::create(const VulkanData& vkdata) {
-    uchar COLOR_ATT_INDEX   = 0;
-    uchar RESOLVE_ATT_INDEX = 1;
-    uchar DEPTH_ATT_INDEX   = 2;
-
-    uchar attSize = 1 + (GfxParams::inst.msaa > MSAAvalue::x1);
+VkResult Renderpass::create(const VulkanData& vkdata, bool hasDepthAttachment) {
+    const uchar COLOR_ATT_INDEX_T   = 0;
+    const uchar RESOLVE_ATT_INDEX_T = 1;
+    const uchar DEPTH_ATT_INDEX_T   = 2;
+    int cur = 0;
+    uchar attSize = 1 + (GfxParams::inst.msaa > MSAAvalue::x1) + (uchar)hasDepthAttachment;
 
     _vkdata = vkdata;
     VkRenderPassCreateInfo crtInfo{};
@@ -125,8 +137,9 @@ VkResult Renderpass::create(const VulkanData& vkdata) {
     //Attachments
     std::vector<VkAttachmentDescription> att;
     att.resize(attSize, {});
+    cur = 0;
 
-    VkAttachmentDescription& colDesc = att[COLOR_ATT_INDEX];
+    VkAttachmentDescription& colDesc = att[cur++];
     
     colDesc.format = srfcFmt.format;
     colDesc.samples =  (VkSampleCountFlagBits)GfxParams::inst.msaa;
@@ -138,7 +151,7 @@ VkResult Renderpass::create(const VulkanData& vkdata) {
     colDesc.finalLayout    = (GfxParams::inst.msaa > MSAAvalue::x1) ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     if (GfxParams::inst.msaa > MSAAvalue::x1) {
-        VkAttachmentDescription& resolveDesc = att[RESOLVE_ATT_INDEX];
+        VkAttachmentDescription& resolveDesc = att[cur++];
         resolveDesc.format  = srfcFmt.format;
         resolveDesc.samples = VK_SAMPLE_COUNT_1_BIT;
         resolveDesc.loadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -148,23 +161,43 @@ VkResult Renderpass::create(const VulkanData& vkdata) {
         resolveDesc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
         resolveDesc.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     }
+
+    if (hasDepthAttachment) {
+        VkAttachmentDescription& dpthDesc = att[cur++];
+        dpthDesc.format        = VK_FORMAT_D32_SFLOAT_S8_UINT;
+        dpthDesc.samples       = VK_SAMPLE_COUNT_1_BIT;
+        dpthDesc.loadOp        = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        dpthDesc.storeOp       = VK_ATTACHMENT_STORE_OP_STORE;
+        dpthDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        dpthDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+        dpthDesc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+        dpthDesc.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    }
     
     //References
     VkAttachmentReference  colAttRef{};
     VkAttachmentReference  resolveAttRef{};
+    VkAttachmentReference  dpthAttRef{};
+    cur = 0;
 
     colAttRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colAttRef.attachment = COLOR_ATT_INDEX;
+    colAttRef.attachment = cur++;
 
     resolveAttRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    resolveAttRef.attachment = RESOLVE_ATT_INDEX;
 
+    dpthAttRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     //Subpass
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments    = &colAttRef;
+
     if (GfxParams::inst.msaa > MSAAvalue::x1) {
-        VkAttachmentDescription& resolveDesc = att[RESOLVE_ATT_INDEX];
+        resolveAttRef.attachment = cur++;
         subpass.pResolveAttachments  = &resolveAttRef;
+    }
+
+    if (hasDepthAttachment) {
+        dpthAttRef.attachment = cur++;
+        subpass.pDepthStencilAttachment = &dpthAttRef;
     }
 
     VkSubpassDependency dpn{};
@@ -187,11 +220,6 @@ VkResult Renderpass::create(const VulkanData& vkdata) {
     crtInfo.pAttachments    = att.data();
     
     return vkCreateRenderPass(_vkdata.dvc, &crtInfo, nullptr, &handle);
-
-#undef COLOR_ATT_INDEX
-#undef DEPTH_ATT_INDEX
-#undef RESOLVE_ATT_INDEX
-
 }
 
 void Renderpass::dstr() {

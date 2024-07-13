@@ -49,6 +49,7 @@ class Framebuffer {
     VkFramebuffer handle  = nullptr;
     VulkanData  _vkdata;
 };
+
 class Sampler {
     public: 
         VkResult create(const VulkanData& vkdata);
@@ -59,3 +60,4 @@ class Sampler {
         VkSampler           handle  = nullptr;
         VulkanData          _vkdata;
 };
+

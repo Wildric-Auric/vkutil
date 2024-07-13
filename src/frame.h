@@ -7,16 +7,15 @@
 
 class Renderpass {
 public:
-    VkResult create(const VulkanData&);
+    VkResult create(const VulkanData&, bool hasDepthAttachment = false);
     void     dstr();
     VkRenderPass handle;
-
     VulkanData _vkdata;
 };
 
 class Swapchain {
     public:
-        VkResult create(const VulkanData& vkdata, const Window& win, Renderpass rdrpass);
+        VkResult create(const VulkanData& vkdata, const Window& win, Renderpass rdrpass, img* depthBuffer = nullptr);
         void dstr();
 
         void chooseExtent(const Window& win, const VkSurfaceCapabilitiesKHR& cap, VkExtent2D* const outExt  );

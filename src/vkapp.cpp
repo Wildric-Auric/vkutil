@@ -39,11 +39,18 @@ i32 Vkapp::init() {
     if (!win.ptr) {return 1;}
     initVkData();
    
-    VK_CHECK_EXTENDED(renderpass.create(data), "rndpass");
+    VK_CHECK_EXTENDED(renderpass.create(data, 1), "rndpass");
 
     VK_CHECK_EXTENDED(frame.create(data), "frame");
+    
+    depthBuffer.fillCrtInfo();
+    depthBuffer.crtInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    depthBuffer.crtInfo.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+    depthBuffer.crtInfo.extent.width = 500; //TODO::Hardcoded
+    depthBuffer.crtInfo.extent.height = 500;
+    depthBuffer.create(data);
 
-    VK_CHECK_EXTENDED(swpchain.create(data, win, renderpass), "Failed to create swapchain");
+    VK_CHECK_EXTENDED(swpchain.create(data, win, renderpass, &depthBuffer), "Failed to create swapchain");
 
 
     std::vector<char> frag;
@@ -295,9 +302,16 @@ i32 Vkapp::loop() {
     rdrpassInfo.renderArea.offset = {0,0};
     rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
     //TODO::add depth clear
-    VkClearValue clearCol = {1.0f, 0.05f, 0.15f, 1.0f};
-    rdrpassInfo.clearValueCount     = 1;
-    rdrpassInfo.pClearValues        = &clearCol;
+    VkClearValue clearCol[] = {
+        {1.0f, 0.05f, 0.15f, 1.0f},
+        {}
+    };        
+    clearCol[1].depthStencil.depth   = 1.0;
+    clearCol[1].depthStencil.stencil = 0.0;
+
+
+    rdrpassInfo.clearValueCount     = sizeof(clearCol) / sizeof(clearCol[0]);
+    rdrpassInfo.pClearValues        = clearCol;
 
     submitInfo.sType =  VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount   = 1;
@@ -435,6 +449,7 @@ i32 Vkapp::loop() {
     tempImg.dstr();
     img0.dstr();
     view.dstr();
+    depthBuffer.dstr();
     return 0;
 }
 
