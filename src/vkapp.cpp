@@ -33,16 +33,17 @@ bool Window::consumesignal() {
 i32 Vkapp::init() {
     //Open window
     NWin::Vec2 size;
-    win.crtInfo.metrics.size = {500, 500};
-    win.ptr = NWin::Window::stCreateWindow(win.crtInfo);    
+    win.crtInfo.metrics.size = {720, 480};
+    win.ptr = NWin::Window::stCreateWindow(win.crtInfo);
     win.ptr->getDrawAreaSize(size);
-    win.drawArea.x = size.x; win.drawArea.y = size.y;
+    win.drawArea.x = size.x;
+    win.drawArea.y = size.y;
     Window::cur = &win;
     win.ptr->setResizeCallback(Window::rszcallback);
     if (!win.ptr) {return 1;}
     initVkData();
     
-    GfxParams::inst.msaa = MSAAvalue::x8;
+    GfxParams::inst.msaa = MSAAvalue::x16;
 
     VK_CHECK_EXTENDED(renderpass.create(data, win, true, true), "rndpass");
 
@@ -272,8 +273,8 @@ i32 Vkapp::loop() {
     VkDescriptorImageInfo imInf{};
     imInf.sampler     = smpler.handle;
     imInf.imageView   = view.handle;
-    imInf.imageLayout = img0.crtInfo.initialLayout; 
-    
+    imInf.imageLayout = img0.crtInfo.initialLayout;    
+
     wrt = VkWriteDescriptorSet{};
     wrt.descriptorCount = 1;
     wrt.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -361,8 +362,6 @@ i32 Vkapp::loop() {
         res = vkAcquireNextImageKHR(data.dvc, swpchain.handle, UINT64_MAX, frame.semImgAvailable, VK_NULL_HANDLE, &swpIndex);
         //Swapchain recreation
         if (res == VK_ERROR_OUT_OF_DATE_KHR) { 
-            swpchain.dstr();
-            renderpass.dstrRes();
             NWin::Vec2 size;
             win.ptr->getDrawAreaSize(size);
             win.drawArea.x = size.x;
@@ -373,6 +372,10 @@ i32 Vkapp::loop() {
                 win.drawArea.x = size.x;
                 win.drawArea.y = size.y;
             }
+
+            swpchain.dstr();
+            renderpass.dstrRes();
+
             renderpass.createRes(win, renderpass.depth.valid, renderpass.msaaA.valid);
             swpchain.create(data, win, renderpass);
             rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
@@ -430,8 +433,6 @@ i32 Vkapp::loop() {
         res = vkQueuePresentKHR(preQueue, &preInfo);
         
         if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || win.consumesignal()) {
-            swpchain.dstr();
-            renderpass.dstrRes();
             NWin::Vec2 size;
             win.ptr->getDrawAreaSize(size);
             win.drawArea.x = size.x;
@@ -442,6 +443,9 @@ i32 Vkapp::loop() {
                 win.drawArea.x = size.x;
                 win.drawArea.y = size.y;
             }
+            swpchain.dstr();
+            renderpass.dstrRes();
+
             renderpass.createRes(win, renderpass.depth.valid, renderpass.msaaA.valid);
             swpchain.create(data, win, renderpass);
             rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};

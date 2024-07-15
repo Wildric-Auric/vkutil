@@ -85,7 +85,6 @@ VkResult Framebuffer::create(const VulkanData& vkdata, VkRenderPass rdrpass, VkI
    crtInfo.renderPass      = rdrpass;
    crtInfo.attachmentCount = attLen;
    crtInfo.pAttachments    = attchments;
-
    return vkCreateFramebuffer(_vkdata.dvc, &crtInfo, nullptr, &handle);
 }
 

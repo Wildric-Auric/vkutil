@@ -71,7 +71,6 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
         fake.crtInfo.samples = (VkSampleCountFlagBits)GfxParams::inst.msaa;
         fake.handle         = imgs[i];
         views[i].fillCrtInfo(fake);
-        views[i].crtInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
         views[i].create(_vkdata);
 
         fmbuffs[i].fillCrtInfo();
@@ -107,8 +106,7 @@ void Swapchain::chooseExtent(const Window& win, const VkSurfaceCapabilitiesKHR& 
         return;
     }
 
-    NWin::Vec2 size;
-    win.ptr->getDrawAreaSize(size);
+    ivec2 size = win.drawArea;
     outExt->width = Clamp<ui32>(size.x, cap.minImageExtent.width, cap.maxImageExtent.width);
     outExt->height= Clamp<ui32>(size.y, cap.minImageExtent.height, cap.maxImageExtent.height);
 }
@@ -153,12 +151,12 @@ VkResult Renderpass::create(const VulkanData& vkdata, const Window& win, bool ha
     
     if (hasDepthAttachment) {
         VkAttachmentDescription& dpthDesc = att[cur++];
-        dpthDesc.format        = VK_FORMAT_D32_SFLOAT_S8_UINT;
-        dpthDesc.samples       = (VkSampleCountFlagBits)GfxParams::inst.msaa;
-        dpthDesc.loadOp        = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        dpthDesc.storeOp       = VK_ATTACHMENT_STORE_OP_STORE;
-        dpthDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        dpthDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+        dpthDesc.format         = VK_FORMAT_D32_SFLOAT_S8_UINT;
+        dpthDesc.samples        = (VkSampleCountFlagBits)GfxParams::inst.msaa;
+        dpthDesc.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        dpthDesc.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        dpthDesc.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        dpthDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         dpthDesc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
         dpthDesc.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     }
@@ -214,9 +212,9 @@ VkResult Renderpass::create(const VulkanData& vkdata, const Window& win, bool ha
     dpn.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT          | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
 
-    crtInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    crtInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     crtInfo.dependencyCount = 1;
-    crtInfo.pDependencies = &dpn;
+    crtInfo.pDependencies   = &dpn;
     crtInfo.subpassCount = 1;
     crtInfo.pSubpasses   = &subpass;
     crtInfo.attachmentCount = att.size();
@@ -255,7 +253,7 @@ VkResult Renderpass::createRes(const Window& win, bool hasDepthAttachment, bool 
        msaaA.image.fillCrtInfo();
        msaaA.image.crtInfo.usage   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
        msaaA.image.crtInfo.samples = (VkSampleCountFlagBits)GfxParams::inst.msaa;
-       msaaA.image.crtInfo.extent.width = win.drawArea.x;
+       msaaA.image.crtInfo.extent.width  = win.drawArea.x;
        msaaA.image.crtInfo.extent.height = win.drawArea.y;
        res = msaaA.image.create(_vkdata);
        if (res != VK_SUCCESS) return res;
