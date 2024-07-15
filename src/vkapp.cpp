@@ -32,25 +32,23 @@ bool Window::consumesignal() {
 
 i32 Vkapp::init() {
     //Open window
+    NWin::Vec2 size;
     win.crtInfo.metrics.size = {500, 500};
     win.ptr = NWin::Window::stCreateWindow(win.crtInfo);    
+    win.ptr->getDrawAreaSize(size);
+    win.drawArea.x = size.x; win.drawArea.y = size.y;
     Window::cur = &win;
     win.ptr->setResizeCallback(Window::rszcallback);
     if (!win.ptr) {return 1;}
     initVkData();
-   
-    VK_CHECK_EXTENDED(renderpass.create(data, 1), "rndpass");
+    
+    GfxParams::inst.msaa = MSAAvalue::x8;
+
+    VK_CHECK_EXTENDED(renderpass.create(data, win, true, true), "rndpass");
 
     VK_CHECK_EXTENDED(frame.create(data), "frame");
     
-    depthBuffer.fillCrtInfo();
-    depthBuffer.crtInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    depthBuffer.crtInfo.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
-    depthBuffer.crtInfo.extent.width = 500; //TODO::Hardcoded
-    depthBuffer.crtInfo.extent.height = 500;
-    depthBuffer.create(data);
-
-    VK_CHECK_EXTENDED(swpchain.create(data, win, renderpass, &depthBuffer), "Failed to create swapchain");
+    VK_CHECK_EXTENDED(swpchain.create(data, win, renderpass), "Failed to create swapchain");
 
 
     std::vector<char> frag;
@@ -361,15 +359,21 @@ i32 Vkapp::loop() {
         vkWaitForFences(data.dvc, 1, &frame.fenQueueSubmitComplete, VK_TRUE, UINT64_MAX);
 
         res = vkAcquireNextImageKHR(data.dvc, swpchain.handle, UINT64_MAX, frame.semImgAvailable, VK_NULL_HANDLE, &swpIndex);
-
+        //Swapchain recreation
         if (res == VK_ERROR_OUT_OF_DATE_KHR) { 
             swpchain.dstr();
+            renderpass.dstrRes();
             NWin::Vec2 size;
             win.ptr->getDrawAreaSize(size);
+            win.drawArea.x = size.x;
+            win.drawArea.y = size.y;
             while (size.x == 0 || size.y == 0) {
                 win.ptr->update();
                 win.ptr->getDrawAreaSize(size);
+                win.drawArea.x = size.x;
+                win.drawArea.y = size.y;
             }
+            renderpass.createRes(win, renderpass.depth.valid, renderpass.msaaA.valid);
             swpchain.create(data, win, renderpass);
             rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
             win.ptr->_getKeyboard().update();
@@ -427,12 +431,18 @@ i32 Vkapp::loop() {
         
         if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || win.consumesignal()) {
             swpchain.dstr();
+            renderpass.dstrRes();
             NWin::Vec2 size;
             win.ptr->getDrawAreaSize(size);
+            win.drawArea.x = size.x;
+            win.drawArea.y = size.y;
             while (size.x == 0 || size.y == 0) {
                 win.ptr->update();
                 win.ptr->getDrawAreaSize(size);
+                win.drawArea.x = size.x;
+                win.drawArea.y = size.y;
             }
+            renderpass.createRes(win, renderpass.depth.valid, renderpass.msaaA.valid);
             swpchain.create(data, win, renderpass);
             rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
         }
@@ -449,7 +459,6 @@ i32 Vkapp::loop() {
     tempImg.dstr();
     img0.dstr();
     view.dstr();
-    depthBuffer.dstr();
     return 0;
 }
 

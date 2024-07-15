@@ -41,7 +41,7 @@ VkImageCreateInfo& img::fillCrtInfo() {
     crtInfo.arrayLayers  = 1;
     crtInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     crtInfo.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
-    crtInfo.samples       = (VkSampleCountFlagBits)GfxParams::inst.msaa;
+    crtInfo.samples       = VK_SAMPLE_COUNT_1_BIT;
     crtInfo.usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     return crtInfo;
 };

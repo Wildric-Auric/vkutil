@@ -32,9 +32,6 @@ public:
     bool validationEnabled = 1;
     DebugMessenger dbgMsg;
     
-    //TEMPORARY SOLUTION! depthBuffer don't belong here
-    img           depthBuffer;
-
     Frame         frame;
     Swapchain     swpchain;
     Pipeline      pipeline;

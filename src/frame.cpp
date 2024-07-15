@@ -4,7 +4,7 @@
 #include "params.h"
 
 
-VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpass rdrpass, img* depthBuffer) {
+VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpass rdrpass) {
     VkResult res;
     VkSwapchainCreateInfoKHR crtInfo{};
     VkSurfaceFormatKHR srfcFmt;
@@ -68,8 +68,10 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
     fmbuffs.resize(imgCount);
     for (arch i = 0; i < imgCount; ++i) {
         fake.crtInfo.format = srfcFmt.format;
+        fake.crtInfo.samples = (VkSampleCountFlagBits)GfxParams::inst.msaa;
         fake.handle         = imgs[i];
         views[i].fillCrtInfo(fake);
+        views[i].crtInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
         views[i].create(_vkdata);
 
         fmbuffs[i].fillCrtInfo();
@@ -78,21 +80,23 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
         //TODO::update this when there is MSAA impl 
         imgView dpthView;
         imgView msaaView;
-        ui32         cur    = 1;
-        ui32         attLen =   1 + (depthBuffer != nullptr);
+        //TODO::Abstract cur and attLen in renderpass
+        ui32         cur    = 0;
+        ui32         attLen =   1 + (rdrpass.depth.valid) + (rdrpass.msaaA.valid);
         std::vector<VkImageView> att(attLen);
-        att[0]  = views[i].handle;
-        
-        if (depthBuffer) {
-            dpthView.fillCrtInfo(*depthBuffer);
-            dpthView.crtInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-            dpthView.create(vkdata);
-            att[cur++] = dpthView.handle;
-        }
 
+        if (rdrpass.msaaA.valid) {
+            att[cur++] = rdrpass.msaaA.view.handle;
+            if (rdrpass.depth.valid) att[cur++] = rdrpass.depth.view.handle;
+            att[cur++] = views[i].handle;
+        }
+        else {
+            att[cur++] = views[i].handle;
+            if (rdrpass.depth.valid) att[cur++] = rdrpass.depth.view.handle;
+        }
+            
         fmbuffs[i].create(_vkdata, rdrpass.handle, att.data(), attLen);
     }
-
     return res;
 }
 
@@ -118,12 +122,9 @@ void Swapchain::dstr() {
     vkDestroySwapchainKHR(_vkdata.dvc, handle, nullptr);
 }
 
-VkResult Renderpass::create(const VulkanData& vkdata, bool hasDepthAttachment) {
-    const uchar COLOR_ATT_INDEX_T   = 0;
-    const uchar RESOLVE_ATT_INDEX_T = 1;
-    const uchar DEPTH_ATT_INDEX_T   = 2;
+VkResult Renderpass::create(const VulkanData& vkdata, const Window& win, bool hasDepthAttachment, bool msaa) {
     int cur = 0;
-    uchar attSize = 1 + (GfxParams::inst.msaa > MSAAvalue::x1) + (uchar)hasDepthAttachment;
+    uchar attSize = 1 + (uchar)msaa + (uchar)hasDepthAttachment;
 
     _vkdata = vkdata;
     VkRenderPassCreateInfo crtInfo{};
@@ -142,18 +143,30 @@ VkResult Renderpass::create(const VulkanData& vkdata, bool hasDepthAttachment) {
     VkAttachmentDescription& colDesc = att[cur++];
     
     colDesc.format = srfcFmt.format;
-    colDesc.samples =  (VkSampleCountFlagBits)GfxParams::inst.msaa;
+    colDesc.samples = msaa ? (VkSampleCountFlagBits)GfxParams::inst.msaa : VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
     colDesc.loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     colDesc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-    colDesc.finalLayout    = (GfxParams::inst.msaa > MSAAvalue::x1) ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    colDesc.finalLayout    = (msaa) ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    
+    if (hasDepthAttachment) {
+        VkAttachmentDescription& dpthDesc = att[cur++];
+        dpthDesc.format        = VK_FORMAT_D32_SFLOAT_S8_UINT;
+        dpthDesc.samples       = (VkSampleCountFlagBits)GfxParams::inst.msaa;
+        dpthDesc.loadOp        = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        dpthDesc.storeOp       = VK_ATTACHMENT_STORE_OP_STORE;
+        dpthDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        dpthDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+        dpthDesc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+        dpthDesc.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    }
 
-    if (GfxParams::inst.msaa > MSAAvalue::x1) {
+    if (msaa) {
         VkAttachmentDescription& resolveDesc = att[cur++];
         resolveDesc.format  = srfcFmt.format;
-        resolveDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+        resolveDesc.samples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
         resolveDesc.loadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         resolveDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         resolveDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -162,18 +175,7 @@ VkResult Renderpass::create(const VulkanData& vkdata, bool hasDepthAttachment) {
         resolveDesc.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     }
 
-    if (hasDepthAttachment) {
-        VkAttachmentDescription& dpthDesc = att[cur++];
-        dpthDesc.format        = VK_FORMAT_D32_SFLOAT_S8_UINT;
-        dpthDesc.samples       = VK_SAMPLE_COUNT_1_BIT;
-        dpthDesc.loadOp        = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        dpthDesc.storeOp       = VK_ATTACHMENT_STORE_OP_STORE;
-        dpthDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        dpthDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-        dpthDesc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-        dpthDesc.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    }
-    
+     
     //References
     VkAttachmentReference  colAttRef{};
     VkAttachmentReference  resolveAttRef{};
@@ -181,25 +183,26 @@ VkResult Renderpass::create(const VulkanData& vkdata, bool hasDepthAttachment) {
     cur = 0;
 
     colAttRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colAttRef.attachment = cur++;
 
     resolveAttRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     dpthAttRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     //Subpass
     subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments    = &colAttRef;
 
-    if (GfxParams::inst.msaa > MSAAvalue::x1) {
-        resolveAttRef.attachment = cur++;
-        subpass.pResolveAttachments  = &resolveAttRef;
-    }
+    colAttRef.attachment = cur++;
+    subpass.pColorAttachments    = &colAttRef;
 
     if (hasDepthAttachment) {
         dpthAttRef.attachment = cur++;
         subpass.pDepthStencilAttachment = &dpthAttRef;
     }
-
+    
+    if (msaa) {
+        resolveAttRef.attachment = cur++;
+        subpass.pResolveAttachments  = &resolveAttRef;
+    }
+    
     VkSubpassDependency dpn{};
     dpn.srcSubpass = VK_SUBPASS_EXTERNAL;
     dpn.dstSubpass = 0;
@@ -219,11 +222,67 @@ VkResult Renderpass::create(const VulkanData& vkdata, bool hasDepthAttachment) {
     crtInfo.attachmentCount = att.size();
     crtInfo.pAttachments    = att.data();
     
-    return vkCreateRenderPass(_vkdata.dvc, &crtInfo, nullptr, &handle);
+    VkResult res = vkCreateRenderPass(_vkdata.dvc, &crtInfo, nullptr, &handle);
+    if (res != VK_SUCCESS) {
+        return res;
+    }
+
+    res = createRes(win, hasDepthAttachment, msaa);
+
+    return res;
 }
 
 void Renderpass::dstr() {
     vkDestroyRenderPass(_vkdata.dvc, handle, nullptr);
+    dstrRes();
+}
+
+void Renderpass::dstrRes() {
+    if (depth.valid) {
+        depth.view.dstr();
+        depth.image.dstr();
+    }
+    if (msaaA.valid) {
+        msaaA.view.dstr();
+        msaaA.image.dstr(); 
+    }
+}
+
+VkResult Renderpass::createRes(const Window& win, bool hasDepthAttachment, bool msaa) {
+    VkResult res = VK_SUCCESS;
+    if (msaa) {
+       msaaA.valid = true; 
+       msaaA.image.fillCrtInfo();
+       msaaA.image.crtInfo.usage   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+       msaaA.image.crtInfo.samples = (VkSampleCountFlagBits)GfxParams::inst.msaa;
+       msaaA.image.crtInfo.extent.width = win.drawArea.x;
+       msaaA.image.crtInfo.extent.height = win.drawArea.y;
+       res = msaaA.image.create(_vkdata);
+       if (res != VK_SUCCESS) return res;
+
+       msaaA.view.fillCrtInfo(msaaA.image);
+       msaaA.view.crtInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+       res = msaaA.view.create(_vkdata);
+       if (res != VK_SUCCESS) return res;
+    }   
+
+    if (hasDepthAttachment) {
+        depth.valid = true;
+        depth.image.fillCrtInfo();
+        depth.image.crtInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        depth.image.crtInfo.samples = (VkSampleCountFlagBits)GfxParams::inst.msaa;
+        depth.image.crtInfo.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+        depth.image.crtInfo.extent.width =  win.drawArea.x; 
+        depth.image.crtInfo.extent.height = win.drawArea.y;
+        res = depth.image.create(_vkdata);
+        if (res != VK_SUCCESS) return res;
+
+        depth.view.fillCrtInfo(depth.image);
+        depth.view.crtInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        res = depth.view.create(_vkdata);
+        if (res != VK_SUCCESS) return res;
+    }
+    return res;
 }
 
 VkResult Frame::create(const VulkanData& vkdata) {

@@ -1,6 +1,7 @@
 #pragma once
 #include "vulkan/vulkan.h"
 #include "nwin/window.h"
+#include "globals.h"
 
 
 #define VK_STR_VALIDATION_LAYER "VK_LAYER_KHRONOS_validation"
@@ -20,7 +21,7 @@ class Window {
     NWin::WindowCrtInfo crtInfo; //creation info
     pWin ptr        = nullptr;
     bool _rszsignal = false; 
-
+    ivec2 drawArea  = {500, 500};
     bool getRszSignal();
     bool consumesignal();
 
