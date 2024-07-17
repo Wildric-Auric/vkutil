@@ -77,7 +77,6 @@ VkFramebufferCreateInfo& Framebuffer::fillCrtInfo() {
     crtInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO; 
     crtInfo.layers = 1;
     return crtInfo;
-
 }
 
 VkResult Framebuffer::create(const VulkanData& vkdata, VkRenderPass rdrpass, VkImageView* attchments, ui32 attLen) {

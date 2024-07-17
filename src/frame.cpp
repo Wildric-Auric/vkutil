@@ -76,9 +76,6 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
         fmbuffs[i].fillCrtInfo();
         fmbuffs[i].crtInfo.width  = crtInfo.imageExtent.width;
         fmbuffs[i].crtInfo.height = crtInfo.imageExtent.height;
-        //TODO::update this when there is MSAA impl 
-        imgView dpthView;
-        imgView msaaView;
         //TODO::Abstract cur and attLen in renderpass
         ui32         cur    = 0;
         ui32         attLen =   1 + (rdrpass.depth.valid) + (rdrpass.msaaA.valid);
@@ -94,7 +91,7 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
             if (rdrpass.depth.valid) att[cur++] = rdrpass.depth.view.handle;
         }
             
-        fmbuffs[i].create(_vkdata, rdrpass.handle, att.data(), attLen);
+        res = fmbuffs[i].create(_vkdata, rdrpass.handle, att.data(), attLen);
     }
     return res;
 }
@@ -148,6 +145,7 @@ VkResult Renderpass::create(const VulkanData& vkdata, const Window& win, bool ha
     colDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     colDesc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
     colDesc.finalLayout    = (msaa) ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
     
     if (hasDepthAttachment) {
         VkAttachmentDescription& dpthDesc = att[cur++];
@@ -236,13 +234,14 @@ void Renderpass::dstr() {
 }
 
 void Renderpass::dstrRes() {
-    if (depth.valid) {
-        depth.view.dstr();
-        depth.image.dstr();
-    }
     if (msaaA.valid) {
         msaaA.view.dstr();
         msaaA.image.dstr(); 
+    }
+
+    if (depth.valid) {
+        depth.view.dstr();
+        depth.image.dstr();
     }
 }
 
@@ -251,7 +250,7 @@ VkResult Renderpass::createRes(const Window& win, bool hasDepthAttachment, bool 
     if (msaa) {
        msaaA.valid = true; 
        msaaA.image.fillCrtInfo();
-       msaaA.image.crtInfo.usage   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+       msaaA.image.crtInfo.usage   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
        msaaA.image.crtInfo.samples = (VkSampleCountFlagBits)GfxParams::inst.msaa;
        msaaA.image.crtInfo.extent.width  = win.drawArea.x;
        msaaA.image.crtInfo.extent.height = win.drawArea.y;
@@ -283,9 +282,39 @@ VkResult Renderpass::createRes(const Window& win, bool hasDepthAttachment, bool 
     return res;
 }
 
+void Frame::end() {
+        VkResult res;
+        vkEndCommandBuffer(cmdBuff.handle);
+        vkQueueSubmit(cmdBuff.queue, 1, &submitInfo ,fenQueueSubmitComplete);
+        res = vkQueuePresentKHR(preQueue, &preInfo);
+        
+        if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || _data.win->consumesignal()) {
+            NWin::Vec2 size;
+            _data.win->ptr->getDrawAreaSize(size);
+            _data.win->drawArea.x = size.x;
+            _data.win->drawArea.y = size.y;
+            while (size.x == 0 || size.y == 0) {
+                _data.win->ptr->update();
+                _data.win->ptr->getDrawAreaSize(size);
+                _data.win->drawArea.x = size.x;
+                _data.win->drawArea.y = size.y;
+            }
+            _data.swpchain->dstr();
+            _data.renderpass->dstrRes();
+
+            _data.renderpass->createRes(*_data.win, _data.renderpass->depth.valid, _data.renderpass->msaaA.valid);
+            _data.renderpass->depth.image.changeLyt(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, *_data.cmdBuffPool);
+            _data.swpchain->create(_vkdata, *_data.win, *_data.renderpass);
+            rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
+        }
+ 
+        _data.win->ptr->_getKeyboard().update();
+        _data.win->ptr->update();
+}
+
 VkResult Frame::create(const VulkanData& vkdata) {
     _vkdata = vkdata;
-    VkFenceCreateInfo fenCrtInfo;
+    VkFenceCreateInfo     fenCrtInfo;
     VkSemaphoreCreateInfo semCrtInfo;
 
     fenCrtInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -309,28 +338,99 @@ VkResult Frame::create(const VulkanData& vkdata) {
     else if (res1 != VK_SUCCESS) {
         return res1;
     }
-    return VK_SUCCESS; 
+
+
+    VkQueue q = VulkanSupport::getQueue(_vkdata, offsetof(VulkanSupport::QueueFamIndices, gfx));
+    _data.cmdBuffPool->allocCmdBuff(&cmdBuff, q); 
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = NULL;
+    beginInfo.pNext = nullptr;
+    beginInfo.pInheritanceInfo = nullptr;
+
+    NWin::Vec2 size;
+    _data.win->ptr->getDrawAreaSize(size);
+
+    rdrpassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    rdrpassInfo.renderPass  = _data.renderpass->handle;
+    rdrpassInfo.renderArea.offset = {0,0};
+    rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
+
+    rdrpassInfo.clearValueCount     = sizeof(clearCol) / sizeof(clearCol[0]);
+    rdrpassInfo.pClearValues        = clearCol;
+
+    submitInfo.sType =  VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount   = 1;
+    submitInfo.pCommandBuffers      = &cmdBuff.handle;
+    submitInfo.waitSemaphoreCount   = 1;
+
+    submitInfo.pWaitSemaphores    = &semImgAvailable;
+    submitInfo.pWaitDstStageMask  = &waitDstStage;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores    = &semRdrFinished;
+
+    preInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    preInfo.swapchainCount     = 1;
+    preInfo.pSwapchains        = &_data.swpchain->handle;
+    preInfo.pImageIndices      = &swpIndex;
+    preInfo.waitSemaphoreCount = 1;
+    preInfo.pWaitSemaphores    = &semRdrFinished;
+
+    
+    VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, _vkdata);
+
+    vkGetDeviceQueue(_vkdata.dvc, qfam.gfx, 0, &gfxQueue);
+    vkGetDeviceQueue(_vkdata.dvc, qfam.pre, 0, &preQueue);
+
+    return VK_SUCCESS;
 }
 
 void Frame::dstr() {
 
-    VkQueue gfxQueue;
-    VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, _vkdata);
-    vkGetDeviceQueue(_vkdata.dvc, qfam.gfx, 0, &gfxQueue);
-
-    vkQueueWaitIdle(gfxQueue);
+    vkQueueWaitIdle(gfxQueue); 
+    _data.cmdBuffPool->freeCmdBuff(cmdBuff);
 
     vkDestroyFence(_vkdata.dvc, fenQueueSubmitComplete, nullptr);
     vkDestroySemaphore(_vkdata.dvc, semImgAvailable, nullptr);
     vkDestroySemaphore(_vkdata.dvc, semRdrFinished, nullptr);
+    
 
 }
 
+bool Frame::begin() {
+        VkResult res;
+        Frame& frame = *this;
+        VulkanData& data = _vkdata;
+        vkWaitForFences(data.dvc, 1, &frame.fenQueueSubmitComplete, VK_TRUE, UINT64_MAX);
+        res = vkAcquireNextImageKHR(data.dvc, _data.swpchain->handle, UINT64_MAX, frame.semImgAvailable, VK_NULL_HANDLE, &swpIndex);
+        //Swapchain recreation
+        if (res == VK_ERROR_OUT_OF_DATE_KHR) { 
+            NWin::Vec2 size;
+            _data.win->ptr->getDrawAreaSize(size);
+            _data.win->drawArea.x = size.x;
+            _data.win->drawArea.y = size.y;
+            while (size.x == 0 || size.y == 0) {
+                _data.win->ptr->update();
+                _data.win->ptr->getDrawAreaSize(size);
+                _data.win->drawArea.x = size.x;
+                _data.win->drawArea.y = size.y;
+            }
 
+            _data.swpchain->dstr();
+            _data.renderpass->dstrRes();
 
-
-
-
-
-
-
+            _data.renderpass->createRes(*_data.win,  _data.renderpass->depth.valid, _data.renderpass->msaaA.valid);
+            _data.renderpass->depth.image.changeLyt(
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, *_data.cmdBuffPool);
+            _data.swpchain->create(data, *_data.win, *_data.renderpass);
+            rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
+            _data.win->ptr->_getKeyboard().update();
+            _data.win->ptr->update();
+            return 0;
+        }
+        //TODO::RECREATE SWAPCHAIN IF OUT OF DATE
+        vkResetFences(data.dvc, 1, &frame.fenQueueSubmitComplete);
+        vkResetCommandBuffer(cmdBuff.handle, 0);
+        vkBeginCommandBuffer(cmdBuff.handle, &beginInfo);
+        rdrpassInfo.framebuffer = _data.swpchain->fmbuffs[swpIndex].handle;
+        return 1;
+}

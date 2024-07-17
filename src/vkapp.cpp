@@ -45,10 +45,15 @@ i32 Vkapp::init() {
     
     GfxParams::inst.msaa = MSAAvalue::x16;
 
-    VK_CHECK_EXTENDED(renderpass.create(data, win, true, true), "rndpass");
 
-    VK_CHECK_EXTENDED(frame.create(data), "frame");
-    
+    VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, data);
+    VK_CHECK_EXTENDED(gfxCmdPool.create(data, qfam.gfx), "command pool");
+    VK_CHECK_EXTENDED(descPool.create(data), "Descriptor pool");
+
+
+    VK_CHECK_EXTENDED(renderpass.create(data, win, true, true), "rndpass");
+    renderpass.depth.image.changeLyt(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, gfxCmdPool);
+
     VK_CHECK_EXTENDED(swpchain.create(data, win, renderpass), "Failed to create swapchain");
 
 
@@ -72,11 +77,6 @@ i32 Vkapp::init() {
         vertS.stageCrtInfo,
         fragS.stageCrtInfo
     };
-
-    VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, data);
-    VK_CHECK_EXTENDED(gfxCmdPool.create(data, qfam.gfx), "command pool");
-
-    VK_CHECK_EXTENDED(descPool.create(data), "Descriptor pool");
 
     pipeline.fillCrtInfo();
     pipeline.crtInfo.stageCount = 2;
@@ -210,21 +210,13 @@ int Vkapp::initVkData() {
 //This whole method is to be refactored, locality and verbosity here are only for the sake of testing
 //TODO::Submission to queue must in 
 i32 Vkapp::loop() {
-    CmdBuff                  cmdBuff; 
-    VkCommandBufferBeginInfo beginInfo{};
-    VkRenderPassBeginInfo    rdrpassInfo{};
-    VkSubmitInfo             submitInfo{};
-    VkPresentInfoKHR         preInfo{};
-    DescSet                  descSet{};
-    ui32 swpIndex; 
-
+    DescSet     descSet{};
     //Creating image texture
     ui32 imgsize;
     ivec2 vecsize;
     i32   channels; 
     stbi_uc* pixels = stbi_load("../res/tex.jpg", &vecsize.x, &vecsize.y, &channels, STBI_rgb_alpha);
     imgsize = vecsize.x * vecsize.y * 4;
-
     Sampler smpler;
     smpler.fillCrtInfo(data);
     smpler.create(data);
@@ -284,59 +276,6 @@ i32 Vkapp::loop() {
 
     unf.wrt(&color);
     //-----
-    VkQueue q = VulkanSupport::getQueue(data, offsetof(VulkanSupport::QueueFamIndices, gfx));
-
-    gfxCmdPool.allocCmdBuff(&cmdBuff, q); 
-
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = NULL;
-    beginInfo.pNext = nullptr;
-    beginInfo.pInheritanceInfo = nullptr;
-
-    NWin::Vec2 size;
-    win.ptr->getDrawAreaSize(size);
-
-    rdrpassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    rdrpassInfo.renderPass  = renderpass.handle;
-    rdrpassInfo.renderArea.offset = {0,0};
-    rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
-    //TODO::add depth clear
-    VkClearValue clearCol[] = {
-        {1.0f, 0.05f, 0.15f, 1.0f},
-        {}
-    };        
-    clearCol[1].depthStencil.depth   = 1.0;
-    clearCol[1].depthStencil.stencil = 0.0;
-
-
-    rdrpassInfo.clearValueCount     = sizeof(clearCol) / sizeof(clearCol[0]);
-    rdrpassInfo.pClearValues        = clearCol;
-
-    submitInfo.sType =  VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount   = 1;
-    submitInfo.pCommandBuffers      = &cmdBuff.handle;
-    submitInfo.waitSemaphoreCount   = 1;
-
-    submitInfo.pWaitSemaphores    = &frame.semImgAvailable;
-    VkPipelineStageFlags stage    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    submitInfo.pWaitDstStageMask  = &stage;
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores    = &frame.semRdrFinished;
-
-    preInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    preInfo.swapchainCount     = 1;
-    preInfo.pSwapchains        = &swpchain.handle;
-    preInfo.pImageIndices      = &swpIndex;
-    preInfo.waitSemaphoreCount = 1;
-    preInfo.pWaitSemaphores    = &frame.semRdrFinished;
-
-    VkQueue gfxQueue;
-    VkQueue preQueue;
-    
-    VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, data);
-
-    vkGetDeviceQueue(data.dvc, qfam.gfx, 0, &gfxQueue);
-    vkGetDeviceQueue(data.dvc, qfam.pre, 0, &preQueue);
 
     VertexObject vobj;
     VertexData strides[] = {
@@ -355,108 +294,52 @@ i32 Vkapp::loop() {
     vobj.create(data, gfxCmdPool, (float*)strides,  sizeof(strides) );
     vobj.createIndexBuff(data, gfxCmdPool, indices, sizeof(indices));
 
+    Frame frame;
+    frame._data.win = &win;
+    frame._data.swpchain = &swpchain;
+    frame._data.renderpass = &renderpass;
+    frame._data.cmdBuffPool = &gfxCmdPool;
+    frame.create(data);
+
+
     VkResult res;
-    while (win.ptr->shouldLoop()) {
-        vkWaitForFences(data.dvc, 1, &frame.fenQueueSubmitComplete, VK_TRUE, UINT64_MAX);
-
-        res = vkAcquireNextImageKHR(data.dvc, swpchain.handle, UINT64_MAX, frame.semImgAvailable, VK_NULL_HANDLE, &swpIndex);
-        //Swapchain recreation
-        if (res == VK_ERROR_OUT_OF_DATE_KHR) { 
-            NWin::Vec2 size;
-            win.ptr->getDrawAreaSize(size);
-            win.drawArea.x = size.x;
-            win.drawArea.y = size.y;
-            while (size.x == 0 || size.y == 0) {
-                win.ptr->update();
-                win.ptr->getDrawAreaSize(size);
-                win.drawArea.x = size.x;
-                win.drawArea.y = size.y;
-            }
-
-            swpchain.dstr();
-            renderpass.dstrRes();
-
-            renderpass.createRes(win, renderpass.depth.valid, renderpass.msaaA.valid);
-            swpchain.create(data, win, renderpass);
-            rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
-            win.ptr->_getKeyboard().update();
-            win.ptr->update();
+    while (win.ptr->shouldLoop()) {        
+        //TODO::CONTINUE REFACTOR; SEE FRAME class
+        if (!frame.begin()) {
             continue;
         }
-
-        //TODO::RECREATE SWAPCHAIN IF OUT OF DATE
-        vkResetFences(data.dvc, 1, &frame.fenQueueSubmitComplete);
-
-        vkResetCommandBuffer(cmdBuff.handle, 0);
-        vkBeginCommandBuffer(cmdBuff.handle, &beginInfo);
-        
-        rdrpassInfo.framebuffer = swpchain.fmbuffs[swpIndex].handle;
-        vkCmdBeginRenderPass(cmdBuff.handle, &rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
-        vkCmdBindPipeline(cmdBuff.handle, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
+        vkCmdBeginRenderPass(frame.cmdBuff.handle, &frame.rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
+        vkCmdBindPipeline(frame.cmdBuff.handle, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
       
         //Dynamic states 
-        NWin::Vec2 s;
-        win.ptr->getDrawAreaSize(size);
 
-        //TODO::The spec states Viewport size must be greater than 0, handle minimization so that viewport isn't to 0, validation layers on Intel
-        //Don't report that
         VkViewport viewport;
         VkRect2D   scissor;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width =  Max<i32>(size.x, 5.0);
-        viewport.height = Max<i32>(size.y, 5.0);
+        viewport.width =  Max<i32>(win.drawArea.x, 5.0);
+        viewport.height = Max<i32>(win.drawArea.y, 5.0);
         scissor.extent =  {(ui32)viewport.width, (ui32)viewport.height};
         scissor.offset = { 0,0 };
-        vkCmdSetViewport(cmdBuff.handle, 0, 1, &viewport);
-        vkCmdSetScissor(cmdBuff.handle, 0, 1, &scissor);
+        vkCmdSetViewport(frame.cmdBuff.handle, 0, 1, &viewport);
+        vkCmdSetScissor(frame.cmdBuff.handle, 0, 1, &scissor);
 
         VkDeviceSize voff = 0;
         color += 0.01;
         if (color > 1.0)
             color = 0.0;
         unf.wrt(&color);
-        vkCmdBindDescriptorSets(cmdBuff.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline._layout, 0, 1, &descSet.handle, 0, nullptr);
-        vkCmdBindVertexBuffers(cmdBuff.handle, 0, 1, &vobj.buff.handle, &voff);
-        vkCmdBindIndexBuffer(cmdBuff.handle, vobj.indexBuff.handle, voff, VkIndexType::VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(cmdBuff.handle, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
-        //vkCmdDraw(cmdBuff, sizeof(strides) / sizeof(VertexData) , 1, 0, 0);
+        vkCmdBindDescriptorSets(frame.cmdBuff.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline._layout, 0, 1, &descSet.handle, 0, nullptr);
+        vkCmdBindVertexBuffers(frame.cmdBuff.handle, 0, 1, &vobj.buff.handle, &voff);
+        vkCmdBindIndexBuffer(frame.cmdBuff.handle, vobj.indexBuff.handle, voff, VkIndexType::VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(frame.cmdBuff.handle, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
+        vkCmdEndRenderPass(frame.cmdBuff.handle);
 
-        vkCmdEndRenderPass(cmdBuff.handle);
-        vkEndCommandBuffer(cmdBuff.handle);
-
-        vkQueueSubmit(cmdBuff.queue, 1, &submitInfo ,frame.fenQueueSubmitComplete);
-        
-
-        res = vkQueuePresentKHR(preQueue, &preInfo);
-        
-        if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || win.consumesignal()) {
-            NWin::Vec2 size;
-            win.ptr->getDrawAreaSize(size);
-            win.drawArea.x = size.x;
-            win.drawArea.y = size.y;
-            while (size.x == 0 || size.y == 0) {
-                win.ptr->update();
-                win.ptr->getDrawAreaSize(size);
-                win.drawArea.x = size.x;
-                win.drawArea.y = size.y;
-            }
-            swpchain.dstr();
-            renderpass.dstrRes();
-
-            renderpass.createRes(win, renderpass.depth.valid, renderpass.msaaA.valid);
-            swpchain.create(data, win, renderpass);
-            rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
-        }
- 
-        win.ptr->_getKeyboard().update();
-        win.ptr->update();
+        frame.end();
     }
-    
-    vkQueueWaitIdle(gfxQueue); 
-    gfxCmdPool.freeCmdBuff(cmdBuff);
+    frame.dstr();
     vobj.dstr();
     unf.dstr();
     smpler.dstr();
@@ -467,7 +350,6 @@ i32 Vkapp::loop() {
 }
 
 i32 Vkapp::dstr() {
-    frame.dstr();
 
     dbgMsg.dstr();
 

@@ -32,7 +32,6 @@ public:
     bool validationEnabled = 1;
     DebugMessenger dbgMsg;
     
-    Frame         frame;
     Swapchain     swpchain;
     Pipeline      pipeline;
     Renderpass    renderpass;

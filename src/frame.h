@@ -41,13 +41,40 @@ class Swapchain {
         VulkanData     _vkdata;
 };
 
+struct FramdeData {
+    Window*        win;
+    Renderpass*    renderpass;
+    Swapchain*     swpchain;
+    CmdBufferPool* cmdBuffPool;
+};
+
 class Frame {
     public:
         VkResult     create(const VulkanData&);
         void         dstr(); 
+        bool begin();
+        void end();
 
         VkFence      fenQueueSubmitComplete; //Signaled by  vkQueueSubmit()
         VkSemaphore  semImgAvailable;        //Signaled by vkAcquireNext...
         VkSemaphore  semRdrFinished;         //Signaled by vkQueueSubmit()
         VulkanData   _vkdata; 
+        FramdeData   _data;
+        
+        CmdBuff                  cmdBuff; 
+        VkCommandBufferBeginInfo beginInfo{};
+        VkRenderPassBeginInfo    rdrpassInfo{};
+        VkSubmitInfo             submitInfo{};
+        VkPresentInfoKHR         preInfo{};
+
+        VkPipelineStageFlags waitDstStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+        VkClearValue clearCol[2] = {
+            {1.0f, 0.05f, 0.15f, 1.0f},
+            {1.0, 0.0}
+        };        
+
+        VkQueue gfxQueue;
+        VkQueue preQueue;
+        ui32 swpIndex; 
 };
