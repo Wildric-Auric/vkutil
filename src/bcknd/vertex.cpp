@@ -44,8 +44,6 @@ const VkVertexInputAttributeDescription* Vertex::setAttribs(arch* outSize) {
 }
 
 void VertexObject::create(const VulkanData& vkdata, CmdBufferPool pool, float* strides, ui32 size, bool isDynamic) {
-     if (isDynamic) 
-         return; //TODO::
      _vkdata = vkdata;
      Buffer stagingBuffer;
      stagingBuffer.fillCrtInfo();
@@ -54,8 +52,12 @@ void VertexObject::create(const VulkanData& vkdata, CmdBufferPool pool, float* s
      stagingBuffer.create(_vkdata, size);
 
      buff.fillCrtInfo();
-     buff.memProp = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-     buff.crtInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT; 
+
+    
+     buff.memProp = isDynamic ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT 
+                                       : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+     buff.crtInfo.usage |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT; 
      buff.create(_vkdata, size);
 
      void* dst;
@@ -69,8 +71,6 @@ void VertexObject::create(const VulkanData& vkdata, CmdBufferPool pool, float* s
 }
 
 void VertexObject::createIndexBuff(const VulkanData& vkdata, CmdBufferPool pool, ui32* indexArray, ui32 size, bool isDynamic) {
-     if (isDynamic) 
-         return; //TODO::
      _vkdata = vkdata;
      Buffer stagingBuffer;
      stagingBuffer.fillCrtInfo();
@@ -79,7 +79,10 @@ void VertexObject::createIndexBuff(const VulkanData& vkdata, CmdBufferPool pool,
      stagingBuffer.create(_vkdata, size);
 
      indexBuff.fillCrtInfo();
-     indexBuff.memProp = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+     indexBuff.memProp = isDynamic ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT 
+                                       : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
      indexBuff.crtInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT; 
      indexBuff.create(_vkdata, size);
 
