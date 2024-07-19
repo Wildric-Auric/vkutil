@@ -18,18 +18,18 @@ workspace "VKIFR"
         "vendor/"
 	}
 	files {
-		"src/*.cpp",
-		"src/*.h",
-		"src/*.hpp",
+		"src/**.cpp",
+		"src/**.h",
+		"src/**.hpp",
 		"premake5.lua",
-		"src/*.vert",
-		"src/*.frag",
+		"src/**.vert",
+		"src/**.frag",
         "vendor/nwin/*.cpp",
         "vendor/nwin/*.h"
 	}
 	links {
-        "dwmapi.lib",
-	    "C:/VulkanSDK/1.3.268.0/Lib/vulkan-1.lib"
+        	"dwmapi.lib",
+		"C:/VulkanSDK/1.3.268.0/Lib/vulkan-1.lib"
 	}
 	filter "configurations:Release"
 		optimize "On"

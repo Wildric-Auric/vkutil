@@ -1,10 +1,10 @@
-#include "vkapp.h"
-
+#include "bcknd/vkapp.h"
+#include "demo.h"
 
 int main() {
     Vkapp app;
     app.init();
-    app.loop();
+    loop(app);
     app.dstr();
     return 0;
 }

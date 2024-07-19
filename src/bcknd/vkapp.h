@@ -17,7 +17,6 @@ public:
     //1.Opens a window
     //2.Calls initVkData
     int init();
-    int loop();
     int dstr();
     
     //Initializes data member by creating:
@@ -33,7 +32,6 @@ public:
     DebugMessenger dbgMsg;
     
     Swapchain     swpchain;
-    Pipeline      pipeline;
     Renderpass    renderpass;
     CmdBufferPool gfxCmdPool;
     DescPool      descPool;
