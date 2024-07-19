@@ -28,7 +28,7 @@ public:
 
     Window win; 
     VulkanData data;
-    bool validationEnabled = 1;
+    bool validationEnabled = 0;
     DebugMessenger dbgMsg;
     
     Swapchain     swpchain;

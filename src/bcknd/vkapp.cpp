@@ -4,8 +4,7 @@
 #include "nwin/vulkan_surface.h"
 #include "support.h"
 #include "params.h"
-#include "io.h"
-
+#include <string>
 
 //#include <vulkan/vk_enum_string_helper.h>
 
@@ -28,9 +27,8 @@ bool Window::consumesignal() {
 
 i32 Vkapp::init() {
     //Open window
-    NWin::Vec2 size;
-    win.crtInfo.metrics.size = {720, 480};
     win.ptr = NWin::Window::stCreateWindow(win.crtInfo);
+    NWin::Vec2 size;
     win.ptr->getDrawAreaSize(size);
     win.drawArea.x = size.x;
     win.drawArea.y = size.y;
@@ -38,25 +36,19 @@ i32 Vkapp::init() {
     win.ptr->setResizeCallback(Window::rszcallback);
     if (!win.ptr) {return 1;}
     initVkData();
-    
-    GfxParams::inst.msaa = MSAAvalue::x16;
-
-
+ 
     VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, data);
     VK_CHECK_EXTENDED(gfxCmdPool.create(data, qfam.gfx), "command pool");
     VK_CHECK_EXTENDED(descPool.create(data), "Descriptor pool");
-
-
-    VK_CHECK_EXTENDED(renderpass.create(data, win, true, true), "rndpass");
+    VK_CHECK_EXTENDED(renderpass.create(data, win, true, GfxParams::inst.msaa != MSAAvalue::x1), "rndpass");
     renderpass.depth.image.changeLyt(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, gfxCmdPool);
-
     VK_CHECK_EXTENDED(swpchain.create(data, win, renderpass), "Failed to create swapchain");
 
 
     return 0;
 }
 
-VkResult createLogicalDevice(VulkanData& data) {
+VkResult createLogicalDevice(VulkanData& data, bool validationEnabled) {
     VkDeviceCreateInfo crtInfo{};
     VkPhysicalDeviceFeatures feat{};
     std::vector<const char*> ext = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -88,9 +80,8 @@ VkResult createLogicalDevice(VulkanData& data) {
     crtInfo.pQueueCreateInfos    = queueFamCrtInfo.data();
     crtInfo.pEnabledFeatures     = &feat;
 
-    bool validation = 1; //TODO::Refactor this;
     const char* validationLayer = VK_STR_VALIDATION_LAYER;
-    if (validation) {
+    if (validationEnabled) {
         crtInfo.enabledLayerCount = 1;
         crtInfo.ppEnabledLayerNames = &validationLayer;
     }
@@ -146,8 +137,7 @@ int Vkapp::initVkData() {
     
     VK_CHECK_EXTENDED(res, "Failed to create vulkan instance"); 
     //Create Debug Messenger
-    bool validation = true;
-    if (validation) {
+    if (validationEnabled) {
         dbgMsg.fillCrtInfo();
         dbgMsg.create(data); 
     }
@@ -164,7 +154,7 @@ int Vkapp::initVkData() {
     delete[] arr;
     //Logical device
     VK_CHECK_EXTENDED(
-            createLogicalDevice(data), 
+            createLogicalDevice(data, validationEnabled), 
             "Failed to create logical device"
             )
     return res; 

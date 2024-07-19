@@ -15,7 +15,7 @@
 
 inline i32 loop(Vkapp& vkapp) {
     Pipeline      pipeline;
-
+    
     std::vector<char> frag;
     std::vector<char> vert;
     io::readBin("..\\build\\bin\\trifrag.spv", frag );
@@ -127,7 +127,7 @@ inline i32 loop(Vkapp& vkapp) {
         2,1,3
     };
 
-    vobj.create(vkapp.data, vkapp.gfxCmdPool, (float*)strides,  sizeof(strides) );
+    vobj.create(vkapp.data, vkapp.gfxCmdPool, (float*)strides,  sizeof(strides), 1);
     vobj.createIndexBuff(vkapp.data, vkapp.gfxCmdPool, indices, sizeof(indices));
 
     Frame frame;
@@ -136,7 +136,6 @@ inline i32 loop(Vkapp& vkapp) {
     frame._data.renderpass = &vkapp.renderpass;
     frame._data.cmdBuffPool = &vkapp.gfxCmdPool;
     frame.create(vkapp.data);
-
 
     VkResult res;
     while (vkapp.win.ptr->shouldLoop()) {        
@@ -173,7 +172,7 @@ inline i32 loop(Vkapp& vkapp) {
         vkCmdDrawIndexed(frame.cmdBuff.handle, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
         vkCmdEndRenderPass(frame.cmdBuff.handle);
 
-        frame.end();
+        frame.end(); 
     }
     frame.dstr();
     vobj.dstr();
