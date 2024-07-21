@@ -148,6 +148,14 @@ VkResult img::changeLyt(VkImageLayout newlyt, CmdBufferPool& p) {
         srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         dstStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     }
+
+    else if (oldlyt == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newlyt == VK_IMAGE_LAYOUT_GENERAL) {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+
+        srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        dstStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    }
     
     else {
         return VK_ERROR_UNKNOWN;
