@@ -128,3 +128,29 @@ VkResult Shader::create(const VulkanData& vkdata) {
 void Shader::dstr() {
     vkDestroyShaderModule(_vkdata.dvc, handle, nullptr);
 }
+    
+
+VkComputePipelineCreateInfo& ComputePipeline::fillCrtInfo() {
+
+    crtInfo.sType              = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    crtInfo.layout             = NULL;
+    crtInfo.basePipelineIndex  = 0;
+    crtInfo.basePipelineHandle = VK_NULL_HANDLE;
+
+    lytCrtInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    return crtInfo;
+}
+
+VkResult ComputePipeline::create(const VulkanData& vkdata) { 
+    VkResult res;
+    _vkdata = vkdata;
+    vkCreatePipelineLayout(_vkdata.dvc, &lytCrtInfo, nullptr, &_lyt);
+    crtInfo.layout = _lyt;
+    res = vkCreateComputePipelines(_vkdata.dvc, nullptr, 1, &crtInfo, nullptr, &handle);
+    return res;
+} 
+
+void ComputePipeline::dstr() {
+    vkDestroyPipeline(_vkdata.dvc, handle, nullptr);
+    vkDestroyPipelineLayout(_vkdata.dvc, _lyt, nullptr);
+}

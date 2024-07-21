@@ -49,3 +49,16 @@ class Pipeline {
     VkViewport _viewport{};
     VkRect2D   _scissor{};
 };
+
+class ComputePipeline {
+    public:
+    VkResult create(const VulkanData&);
+    VkComputePipelineCreateInfo& fillCrtInfo();
+    void dstr();
+
+    VkComputePipelineCreateInfo crtInfo{};
+    VkPipelineLayoutCreateInfo  lytCrtInfo{};
+    VulkanData                  _vkdata;
+    VkPipeline                  handle = nullptr;
+    VkPipelineLayout            _lyt   = nullptr;
+};

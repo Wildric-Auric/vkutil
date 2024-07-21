@@ -18,15 +18,17 @@ inline i32 loop(Vkapp& vkapp) {
     
     std::vector<char> frag;
     std::vector<char> vert;
+    std::vector<char> comp;
     io::readBin("..\\build\\bin\\trifrag.spv", frag );
     io::readBin("..\\build\\bin\\trivert.spv", vert );
-    Shader fragS, vertS;
+    Shader fragS, vertS, compS;
     fragS.fillCrtInfo((const ui32*)frag.data(), frag.size());
     vertS.fillCrtInfo((const ui32*)vert.data(), vert.size());
     VK_CHECK_EXTENDED(fragS.create(vkapp.data), "fragshader");
     VK_CHECK_EXTENDED(vertS.create(vkapp.data), "vertshader");
     fragS.fillStageCrtInfo(VK_SHADER_STAGE_FRAGMENT_BIT);
     vertS.fillStageCrtInfo(VK_SHADER_STAGE_VERTEX_BIT);
+
 
     VkPipelineShaderStageCreateInfo stages[] = {
         vertS.stageCrtInfo,
@@ -71,7 +73,9 @@ inline i32 loop(Vkapp& vkapp) {
     tempImg.unmapMem(&mapped);
 
     img0.fillCrtInfo();
-    img0.crtInfo.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    img0.crtInfo.usage         = VK_IMAGE_USAGE_SAMPLED_BIT      | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | 
+                                 VK_IMAGE_USAGE_TRANSFER_DST_BIT; 
+
     img0.crtInfo.extent.width  = vecsize.x;
     img0.crtInfo.extent.height = vecsize.y;
     img0.setMaxmmplvl();
@@ -81,6 +85,7 @@ inline i32 loop(Vkapp& vkapp) {
 
     view.fillCrtInfo(img0);
     view.create(vkapp.data);
+
 
     //img0.changeLyt(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, gfxCmdPool);
     //-----
@@ -111,7 +116,65 @@ inline i32 loop(Vkapp& vkapp) {
     descSet.wrt(&wrt, 1);
 
     unf.wrt(&color);
-    //-----
+
+    //-----------------------Compute Parameter------------------
+    ComputePipeline compPipeline;
+    img img1;
+    imgView vv;
+    DescSet  compDescSet;
+    DescPool compDescPool;
+
+    io::readBin("..\\build\\bin\\testcomp.spv", comp);
+    compS.fillCrtInfo((const ui32*)comp.data(), comp.size());
+    VK_CHECK_EXTENDED(compS.create(vkapp.data), "compshader");
+    compS.fillStageCrtInfo(VK_SHADER_STAGE_COMPUTE_BIT);
+    
+    compDescPool._lytBindings = { { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr } };
+    compDescPool.create(vkapp.data);
+    compDescPool.allocDescSet(&compDescSet);
+
+    img1.fillCrtInfo();
+    img1.crtInfo.usage         = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+    img1.crtInfo.format        = VK_FORMAT_R8G8B8A8_UNORM;
+    img1.crtInfo.extent.width  = vecsize.x;
+    img1.crtInfo.extent.height = vecsize.y;
+    img1.create(vkapp.data);
+    img1.cpyFrom(vkapp.gfxCmdPool, tempImg, vecsize, 0);
+    img1.changeLyt(VK_IMAGE_LAYOUT_GENERAL, vkapp.gfxCmdPool);
+
+    vv.fillCrtInfo(img1);
+    vv.create(vkapp.data);
+ 
+    VkWriteDescriptorSet wrt0{};
+    VkDescriptorImageInfo inf0{};
+    Sampler s;
+    s.fillCrtInfo(vkapp.data);
+    s.create(vkapp.data);
+
+    inf0.sampler         = smpler.handle;
+    inf0.imageLayout     = img1.crtInfo.initialLayout;
+    inf0.imageView       = vv.handle;
+
+    wrt0.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    wrt0.descriptorCount = 1;
+    wrt0.pImageInfo      = &inf0;
+
+    
+    compDescSet.wrt(&wrt0, 0);
+
+    CmdBuff compCmdBuff;
+    vkapp.gfxCmdPool.allocCmdBuff(&compCmdBuff, 
+    VulkanSupport::getQueue(vkapp.data, offsetof(VulkanSupport::QueueFamIndices, com)));
+
+    compPipeline.fillCrtInfo();
+    compPipeline.crtInfo.stage = compS.stageCrtInfo;
+    compPipeline.lytCrtInfo.setLayoutCount = 1;
+    compPipeline.lytCrtInfo.pSetLayouts    = &compDescPool._lytHandle;
+    compPipeline.create(vkapp.data);
+
+    compS.dstr();
+
+    //---------------------------------------------------------
 
     VertexObject vobj;
     VertexData strides[] = {
@@ -139,28 +202,42 @@ inline i32 loop(Vkapp& vkapp) {
 
     VkResult res;
     while (vkapp.win.ptr->shouldLoop()) {        
-        //TODO::CONTINUE REFACTOR; SEE FRAME class
         if (!frame.begin()) {
             continue;
         }
+        //TODO::Refactor all this compute part
+        //-----------------Compute---------------------
+        VkCommandBufferBeginInfo compCmdBuffBeginInfo{};
+        compCmdBuffBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        vkBeginCommandBuffer(compCmdBuff.handle, &compCmdBuffBeginInfo);
+        vkCmdBindPipeline(compCmdBuff.handle, 
+                              VK_PIPELINE_BIND_POINT_COMPUTE, compPipeline.handle);
+        vkCmdBindDescriptorSets(compCmdBuff.handle, 
+                    VK_PIPELINE_BIND_POINT_COMPUTE, compPipeline._lyt, 0, 1, &compDescSet.handle, 0, nullptr);
+        ui32 gX, gY;
+        gX = img1.crtInfo.extent.width  / 16;
+        gY = img1.crtInfo.extent.height / 16;
+        vkCmdDispatch(compCmdBuff.handle, gX, gY, 1);
+        vkEndCommandBuffer(compCmdBuff.handle);
+
+        compCmdBuff.submit();
+        //--------------------------------------------- 
+
         vkCmdBeginRenderPass(frame.cmdBuff.handle, &frame.rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
         vkCmdBindPipeline(frame.cmdBuff.handle, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
-      
         //Dynamic states 
-
         VkViewport viewport;
         VkRect2D   scissor;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width =  Max<i32>(vkapp.win.drawArea.x, 5.0);
-        viewport.height = Max<i32>(vkapp.win.drawArea.y, 5.0);
+        viewport.width =  Max<i32>(500, 5);
+        viewport.height = Max<i32>(500, 5);
+        viewport.y = Max<i32>(-0.5 * viewport.height + vkapp.win.drawArea.y * 0.5, 0.0);
+        viewport.x = Max<i32>(-0.5 * viewport.width  + vkapp.win.drawArea.x * 0.5, 0.0);
         scissor.extent =  {(ui32)viewport.width, (ui32)viewport.height};
-        scissor.offset = { 0,0 };
+        scissor.offset =  { (i32)viewport.x, (i32)viewport.y };
         vkCmdSetViewport(frame.cmdBuff.handle, 0, 1, &viewport);
         vkCmdSetScissor(frame.cmdBuff.handle, 0, 1, &scissor);
-
         VkDeviceSize voff = 0;
         color += 0.01;
         if (color > 1.0)
@@ -182,5 +259,12 @@ inline i32 loop(Vkapp& vkapp) {
     img0.dstr();
     view.dstr();
     pipeline.dstr();
+    //Compute 
+    img1.dstr();
+    vv.dstr();
+    compDescPool.dstr();
+    compPipeline.dstr();
+
+
     return 0;
 }
