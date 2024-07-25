@@ -260,6 +260,7 @@ inline i32 loop(Vkapp& vkapp) {
     view.dstr();
     pipeline.dstr();
     //Compute 
+    s.dstr();
     img1.dstr();
     vv.dstr();
     compDescPool.dstr();
