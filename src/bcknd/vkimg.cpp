@@ -169,6 +169,28 @@ VkResult img::changeLyt(VkImageLayout newlyt, CmdBufferPool& p) {
     return VK_SUCCESS;
 }
 
+void img::cpyFrom(CmdBufferPool& p, img& other, const ivec2& size, const ivec2& offset) {
+   CmdBuff cmdBuff;
+   VkImageCopy rgn{};
+
+   rgn.extent.depth = 1;
+   rgn.extent.width = size.x;
+   rgn.extent.height = size.y;
+
+   rgn.srcSubresource.mipLevel = 0; 
+   rgn.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+   rgn.srcSubresource.layerCount = 1;
+   
+   rgn.dstSubresource.mipLevel   = 0; 
+   rgn.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+   rgn.dstSubresource.layerCount = 1;
+
+   p.execBegin(&cmdBuff, offsetof(VulkanSupport::QueueFamIndices, gfx));
+   vkCmdCopyImage(cmdBuff.handle, 
+                  other.handle, other.crtInfo.initialLayout, handle, crtInfo.initialLayout, 1, &rgn);
+   p.execEnd(cmdBuff);
+}
+
 void img::cpyFrom(CmdBufferPool& p, Buffer& buff, const ivec2& size, ui32 offset) { 
     CmdBuff cmdbuff;
     VkBufferImageCopy rgn{};
