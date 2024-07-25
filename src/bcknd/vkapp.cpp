@@ -27,6 +27,7 @@ bool Window::consumesignal() {
 
 i32 Vkapp::init() {
     //Open window
+    win.crtInfo.metrics.size = {win.drawArea.x, win.drawArea.y};
     win.ptr = NWin::Window::stCreateWindow(win.crtInfo);
     NWin::Vec2 size;
     win.ptr->getDrawAreaSize(size);
