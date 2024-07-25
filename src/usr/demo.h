@@ -118,6 +118,7 @@ inline i32 loop(Vkapp& vkapp) {
     unf.wrt(&color);
 
     //-----------------------Compute Parameter------------------
+    Sampler s;
     ComputePipeline compPipeline;
     img img1;
     imgView vv;
@@ -147,7 +148,7 @@ inline i32 loop(Vkapp& vkapp) {
  
     VkWriteDescriptorSet wrt0{};
     VkDescriptorImageInfo inf0{};
-    Sampler s;
+
     s.fillCrtInfo(vkapp.data);
     s.create(vkapp.data);
 
@@ -206,22 +207,6 @@ inline i32 loop(Vkapp& vkapp) {
             continue;
         }
         //TODO::Refactor all this compute part
-        //-----------------Compute---------------------
-        VkCommandBufferBeginInfo compCmdBuffBeginInfo{};
-        compCmdBuffBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vkBeginCommandBuffer(compCmdBuff.handle, &compCmdBuffBeginInfo);
-        vkCmdBindPipeline(compCmdBuff.handle, 
-                              VK_PIPELINE_BIND_POINT_COMPUTE, compPipeline.handle);
-        vkCmdBindDescriptorSets(compCmdBuff.handle, 
-                    VK_PIPELINE_BIND_POINT_COMPUTE, compPipeline._lyt, 0, 1, &compDescSet.handle, 0, nullptr);
-        ui32 gX, gY;
-        gX = img1.crtInfo.extent.width  / 16;
-        gY = img1.crtInfo.extent.height / 16;
-        vkCmdDispatch(compCmdBuff.handle, gX, gY, 1);
-        vkEndCommandBuffer(compCmdBuff.handle);
-
-        compCmdBuff.submit();
-        //--------------------------------------------- 
 
         vkCmdBeginRenderPass(frame.cmdBuff.handle, &frame.rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
         vkCmdBindPipeline(frame.cmdBuff.handle, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
@@ -248,6 +233,64 @@ inline i32 loop(Vkapp& vkapp) {
         vkCmdBindIndexBuffer(frame.cmdBuff.handle, vobj.indexBuff.handle, voff, VkIndexType::VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(frame.cmdBuff.handle, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
         vkCmdEndRenderPass(frame.cmdBuff.handle);
+        
+        frame._data.swpchain->imgs[frame.swpIndex].changeLyt(VK_IMAGE_LAYOUT_GENERAL, *frame._data.cmdBuffPool);
+        
+        vkEndCommandBuffer(frame.cmdBuff.handle); 
+        vkQueueSubmit(frame.cmdBuff.queue, 1, &frame.submitInfo ,frame.fenQueueSubmitComplete);
+    
+        //-----------------Compute--------------------- 
+        VkCommandBufferBeginInfo compCmdBuffBeginInfo{};
+        compCmdBuffBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        vkBeginCommandBuffer(compCmdBuff.handle, &compCmdBuffBeginInfo);
+
+        VkMemoryBarrier barrier{};
+        VkImageMemoryBarrier b{};
+        b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+
+        VulkanSupport::QueueFamIndices ind;
+        VulkanSupport::findQueues(ind,frame._vkdata);
+            
+        b.srcQueueFamilyIndex = ind.gfx;
+        b.dstQueueFamilyIndex = ind.com;
+
+        b.oldLayout = frame._data.swpchain->imgs[frame.swpIndex].crtInfo.initialLayout;
+        b.newLayout = frame._data.swpchain->imgs[frame.swpIndex].crtInfo.initialLayout;
+
+
+        barrier.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;  
+        vkCmdPipelineBarrier(compCmdBuff.handle, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+                            0, 1, &barrier, 0, nullptr, 0, nullptr);
+
+
+        vv.dstr();
+        vv.fillCrtInfo(frame._data.swpchain->imgs[frame.swpIndex]);
+        vv.create(vkapp.data);
+
+        inf0.sampler     = smpler.handle;
+        inf0.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        inf0.imageView   = vv.handle;
+
+        wrt0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        wrt0.descriptorCount = 1;
+        wrt0.pImageInfo = &inf0;
+
+        compDescSet.wrt(&wrt0, 0); 
+
+        vkCmdBindPipeline(compCmdBuff.handle, 
+                              VK_PIPELINE_BIND_POINT_COMPUTE, compPipeline.handle);
+        vkCmdBindDescriptorSets(compCmdBuff.handle, 
+                    VK_PIPELINE_BIND_POINT_COMPUTE, compPipeline._lyt, 0, 1, &compDescSet.handle, 0, nullptr);
+        ui32 gX, gY;
+        gX = img1.crtInfo.extent.width  / 16;
+        gY = img1.crtInfo.extent.height / 16;
+        vkCmdDispatch(compCmdBuff.handle, gX, gY, 1);
+        vkEndCommandBuffer(compCmdBuff.handle);
+
+        compCmdBuff.submit();
+        //--------------------------------------------- 
 
         frame.end(); 
     }
@@ -260,6 +303,7 @@ inline i32 loop(Vkapp& vkapp) {
     view.dstr();
     pipeline.dstr();
     //Compute 
+    s.dstr();
     img1.dstr();
     vv.dstr();
     compDescPool.dstr();

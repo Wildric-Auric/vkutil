@@ -24,13 +24,13 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
     crtInfo.sType   = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     crtInfo.surface = vkdata.srfc;
 
-    crtInfo.imageFormat = srfcFmt.format;
+    crtInfo.imageFormat     = VK_FORMAT_R8G8B8A8_UNORM;
     crtInfo.imageColorSpace = srfcFmt.colorSpace;
 
     crtInfo.minImageCount = imgCount;
     crtInfo.imageArrayLayers = 1; 
     chooseExtent(win, spec.cap, &crtInfo.imageExtent);
-    crtInfo.imageUsage  = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; //Render directly
+    crtInfo.imageUsage  = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT; 
     crtInfo.presentMode = VulkanSupport::selPresent();
 
     crtInfo.preTransform   = spec.cap.currentTransform;
@@ -61,16 +61,21 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
     VK_CHECK_EXTENDED(res, "Failed to create swapchain");
     vkGetSwapchainImagesKHR(vkdata.dvc, handle, &imgCount, nullptr);
     imgs.resize(imgCount);
-    vkGetSwapchainImagesKHR(vkdata.dvc, handle, &imgCount, imgs.data());
-    img fake;
+
+    VkImage* raw = new VkImage[imgCount];
+    vkGetSwapchainImagesKHR(vkdata.dvc, handle, &imgCount, raw);
     //Create swapchaine image views and framebuffers
     views.resize(imgCount);
     fmbuffs.resize(imgCount);
     for (arch i = 0; i < imgCount; ++i) {
-        fake.crtInfo.format = srfcFmt.format;
-        fake.crtInfo.samples = (VkSampleCountFlagBits)GfxParams::inst.msaa;
-        fake.handle         = imgs[i];
-        views[i].fillCrtInfo(fake);
+        imgs[i].fillCrtInfo();
+        imgs[i].crtInfo.format  =  crtInfo.imageFormat;
+        imgs[i].crtInfo.samples = (VkSampleCountFlagBits)GfxParams::inst.msaa;
+        imgs[i].handle          = raw[i];
+        imgs[i].crtInfo.extent.width  = crtInfo.imageExtent.width;
+        imgs[i].crtInfo.extent.height = crtInfo.imageExtent.height;
+
+        views[i].fillCrtInfo(imgs[i]);
         views[i].create(_vkdata);
 
         fmbuffs[i].fillCrtInfo();
@@ -93,6 +98,7 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
             
         res = fmbuffs[i].create(_vkdata, rdrpass.handle, att.data(), attLen);
     }
+    delete[] raw;
     return res;
 }
 
@@ -137,14 +143,14 @@ VkResult Renderpass::create(const VulkanData& vkdata, const Window& win, bool ha
 
     VkAttachmentDescription& colDesc = att[cur++];
     
-    colDesc.format = srfcFmt.format;
+    colDesc.format  = VK_FORMAT_R8G8B8A8_UNORM;
     colDesc.samples = msaa ? (VkSampleCountFlagBits)GfxParams::inst.msaa : VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
     colDesc.loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     colDesc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-    colDesc.finalLayout    = (msaa) ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    colDesc.finalLayout    = (msaa) ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL;
 
     
     if (hasDepthAttachment) {
@@ -284,8 +290,9 @@ VkResult Renderpass::createRes(const Window& win, bool hasDepthAttachment, bool 
 
 void Frame::end() {
         VkResult res;
-        vkEndCommandBuffer(cmdBuff.handle);
-        vkQueueSubmit(cmdBuff.queue, 1, &submitInfo ,fenQueueSubmitComplete);
+
+        _data.swpchain->imgs[swpIndex].changeLyt(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, *_data.cmdBuffPool);
+
         res = vkQueuePresentKHR(preQueue, &preInfo);
         
         if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || _data.win->consumesignal()) {

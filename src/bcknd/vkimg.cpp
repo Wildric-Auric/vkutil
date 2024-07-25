@@ -156,6 +156,30 @@ VkResult img::changeLyt(VkImageLayout newlyt, CmdBufferPool& p) {
         srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         dstStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     }
+
+    else if (newlyt == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = 0;
+
+        srcStage = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+        dstStage = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+    }
+
+    else if (newlyt == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = 0;
+
+        srcStage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+        dstStage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    }
+
+    else if (newlyt == VK_IMAGE_LAYOUT_GENERAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = 0;
+
+        srcStage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+        dstStage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    }
     
     else {
         return VK_ERROR_UNKNOWN;
@@ -190,6 +214,28 @@ void img::cpyFrom(CmdBufferPool& p, Buffer& buff, const ivec2& size, ui32 offset
                            handle, crtInfo.initialLayout,
                            1, &rgn);
     p.execEnd(cmdbuff);
+}
+
+void img::cpyFrom(CmdBufferPool& p, img& other, const ivec2& size, const ivec2& offset) {
+   CmdBuff cmdBuff;
+   VkImageCopy rgn{};
+
+   rgn.extent.depth = 1;
+   rgn.extent.width = size.x;
+   rgn.extent.height = size.y;
+
+   rgn.srcSubresource.mipLevel = 0; 
+   rgn.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+   rgn.srcSubresource.layerCount = 1;
+   
+   rgn.dstSubresource.mipLevel   = 0; 
+   rgn.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+   rgn.dstSubresource.layerCount = 1;
+
+   p.execBegin(&cmdBuff, offsetof(VulkanSupport::QueueFamIndices, gfx));
+   vkCmdCopyImage(cmdBuff.handle, 
+                  other.handle, other.crtInfo.initialLayout, handle, crtInfo.initialLayout, 1, &rgn);
+   p.execEnd(cmdBuff);
 }
 
 void img::genmmp(CmdBufferPool& p, ui32 queueIndex) {

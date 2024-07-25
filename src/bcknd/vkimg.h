@@ -14,6 +14,7 @@ class img {
     VkResult changeLyt(VkImageLayout newlyt, CmdBufferPool& ); 
 
     void     cpyFrom(CmdBufferPool&, Buffer& buff, const ivec2& size, ui32 offset);
+    void     cpyFrom(CmdBufferPool&, img&    other, const ivec2& size, const ivec2& offset);
     
     void     genmmp(CmdBufferPool&, ui32 queueIndex);
 

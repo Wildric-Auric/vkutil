@@ -35,7 +35,7 @@ class Swapchain {
         void chooseExtent(const Window& win, const VkSurfaceCapabilitiesKHR& cap, VkExtent2D* const outExt  );
 
         VkSwapchainKHR handle = nullptr;
-        std::vector<VkImage>     imgs;
+        std::vector<img>     imgs;
         std::vector<imgView>     views;
         std::vector<Framebuffer> fmbuffs;
         VulkanData     _vkdata;
