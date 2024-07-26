@@ -3,10 +3,10 @@
 
 int main() {
     Vkapp app;
-    GfxParams::inst.msaa  = MSAAvalue::x1;
-    app.validationEnabled = 1;
+    GfxParams::inst.msaa  = MSAAvalue::x16;
+    app.validationEnabled = false;
     app.init();
+
     loop(app);
-    app.dstr();
     return 0;
 }

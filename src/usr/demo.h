@@ -14,14 +14,27 @@
 #include "stb/stb_image.h"
 
 inline i32 loop(Vkapp& vkapp) {
+
+    CmdBufferPool gfxCmdPool;
+    DescPool      descPool;
+    Renderpass    renderpass;
+    Swapchain     swpchain;
+    
+    VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, vkapp.data);
+    VK_CHECK_EXTENDED(gfxCmdPool.create(vkapp.data, qfam.gfx), "command pool");
+    VK_CHECK_EXTENDED(descPool.create(vkapp.data), "Descriptor pool");
+    VK_CHECK_EXTENDED(renderpass.create(vkapp.data, vkapp.win, true, GfxParams::inst.msaa != MSAAvalue::x1), "rndpass");
+    renderpass.depth.image.changeLyt(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, gfxCmdPool);
+    VK_CHECK_EXTENDED(swpchain.create(vkapp.data, vkapp.win, renderpass), "Failed to create swapchain");
+
     Pipeline      pipeline;
     
     std::vector<char> frag;
     std::vector<char> vert;
-    std::vector<char> comp;
+
     io::readBin("..\\build\\bin\\trifrag.spv", frag );
     io::readBin("..\\build\\bin\\trivert.spv", vert );
-    Shader fragS, vertS, compS;
+    Shader fragS, vertS;
     fragS.fillCrtInfo((const ui32*)frag.data(), frag.size());
     vertS.fillCrtInfo((const ui32*)vert.data(), vert.size());
     VK_CHECK_EXTENDED(fragS.create(vkapp.data), "fragshader");
@@ -38,10 +51,10 @@ inline i32 loop(Vkapp& vkapp) {
     pipeline.fillCrtInfo();
     pipeline.crtInfo.stageCount = 2;
     pipeline.crtInfo.pStages    = stages;
-    pipeline.crtInfo.renderPass = vkapp.renderpass.handle;
+    pipeline.crtInfo.renderPass = renderpass.handle;
 
     pipeline.layoutCrtInfo.setLayoutCount = 1;
-    pipeline.layoutCrtInfo.pSetLayouts    = &vkapp.descPool._lytHandle;
+    pipeline.layoutCrtInfo.pSetLayouts    = &descPool._lytHandle;
 
     VK_CHECK_EXTENDED(pipeline.create(vkapp.data), "Failed to create Pipeline");
     
@@ -80,8 +93,8 @@ inline i32 loop(Vkapp& vkapp) {
     img0.crtInfo.extent.height = vecsize.y;
     img0.setMaxmmplvl();
     img0.create(vkapp.data);
-    img0.cpyFrom(vkapp.gfxCmdPool, tempImg, vecsize, 0);
-    img0.genmmp(vkapp.gfxCmdPool, offsetof(VulkanSupport::QueueFamIndices, gfx));
+    img0.cpyFrom(gfxCmdPool, tempImg, vecsize, 0);
+    img0.genmmp(gfxCmdPool, offsetof(VulkanSupport::QueueFamIndices, gfx));
 
     view.fillCrtInfo(img0);
     view.create(vkapp.data);
@@ -89,11 +102,25 @@ inline i32 loop(Vkapp& vkapp) {
 
     //img0.changeLyt(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, gfxCmdPool);
     //-----
-    float color = 0.5;
+    fvec3   tran = {0.0,0.0,-1.5};
+    Matrix4<float> projMat(1);
+    Matrix4<float> viewMat(1);
+    Matrix4<float> modelMat(1);
+
+    PerspectiveMat(projMat, 70, 1.0, 0.001, 100.0);
+    TranslateMat(modelMat, tran);
+    RotateMat(modelMat, 0.0, {0.0, 1.0, 0.0});
+    LookAt(viewMat, {0.3,-1.0,0.0}, tran, {0.0, 1.0, 0.0});
+    Matrix4<float> unfData = projMat * viewMat * modelMat;
+
+    //fvec4 test = unfData * fvec4(-0.5, 0.5, 100.0, 1.0);
+
     UniBuff unf;
     //descPool._lytBindings.pop_back();
-    unf.create(vkapp.data, sizeof(color));
-    vkapp.descPool.allocDescSet(&descSet);
+    unf.create(vkapp.data, sizeof(unfData));
+    descPool.allocDescSet(&descSet);
+
+
     VkWriteDescriptorSet wrt{};
 
     VkDescriptorBufferInfo inf{};
@@ -114,90 +141,63 @@ inline i32 loop(Vkapp& vkapp) {
     wrt.pImageInfo      = &imInf;
     
     descSet.wrt(&wrt, 1);
-
-    unf.wrt(&color);
-
-    //-----------------------Compute Parameter------------------
-    ComputePipeline compPipeline;
-    img img1;
-    imgView vv;
-    DescSet  compDescSet;
-    DescPool compDescPool;
-
-    io::readBin("..\\build\\bin\\testcomp.spv", comp);
-    compS.fillCrtInfo((const ui32*)comp.data(), comp.size());
-    VK_CHECK_EXTENDED(compS.create(vkapp.data), "compshader");
-    compS.fillStageCrtInfo(VK_SHADER_STAGE_COMPUTE_BIT);
-    
-    compDescPool._lytBindings = { { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr } };
-    compDescPool.create(vkapp.data);
-    compDescPool.allocDescSet(&compDescSet);
-
-    img1.fillCrtInfo();
-    img1.crtInfo.usage         = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-    img1.crtInfo.format        = VK_FORMAT_R8G8B8A8_UNORM;
-    img1.crtInfo.extent.width  = vecsize.x;
-    img1.crtInfo.extent.height = vecsize.y;
-    img1.create(vkapp.data);
-    img1.cpyFrom(vkapp.gfxCmdPool, tempImg, vecsize, 0);
-    img1.changeLyt(VK_IMAGE_LAYOUT_GENERAL, vkapp.gfxCmdPool);
-
-    vv.fillCrtInfo(img1);
-    vv.create(vkapp.data);
- 
-    VkWriteDescriptorSet wrt0{};
-    VkDescriptorImageInfo inf0{};
-    Sampler s;
-    s.fillCrtInfo(vkapp.data);
-    s.create(vkapp.data);
-
-    inf0.sampler         = smpler.handle;
-    inf0.imageLayout     = img1.crtInfo.initialLayout;
-    inf0.imageView       = vv.handle;
-
-    wrt0.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    wrt0.descriptorCount = 1;
-    wrt0.pImageInfo      = &inf0;
-
-    
-    compDescSet.wrt(&wrt0, 0);
-
-    CmdBuff compCmdBuff;
-    vkapp.gfxCmdPool.allocCmdBuff(&compCmdBuff, 
-    VulkanSupport::getQueue(vkapp.data, offsetof(VulkanSupport::QueueFamIndices, com)));
-
-    compPipeline.fillCrtInfo();
-    compPipeline.crtInfo.stage = compS.stageCrtInfo;
-    compPipeline.lytCrtInfo.setLayoutCount = 1;
-    compPipeline.lytCrtInfo.pSetLayouts    = &compDescPool._lytHandle;
-    compPipeline.create(vkapp.data);
-
-    compS.dstr();
-
-    //---------------------------------------------------------
+    unf.wrt(&unfData);
 
     VertexObject vobj;
     VertexData strides[] = {
-        { {-0.5, -0.5, .0},  {0.0, 0.0} },
-        { { 0.5, -0.5, 0.0}, {1.0, 0.0} },    
-        { {-0.5,  0.5, 0.0}, {0.0, 1.0} },
-        { { 0.5,  0.5, 0.0}, {1.0, 1.0} }
+        { {-0.5, -0.5, 0.5},  {0.0, 0.0} },      
+        { { 0.5, -0.5, 0.5}, {1.0, 0.0} },    
+        { {-0.5,  0.5, 0.5}, {0.0, 1.0} },
+        { { 0.5,  0.5, 0.5}, {1.0, 1.0} },
+        
+        { {0.5, -0.5, 0.5},  {0.0, 0.0} },      
+        { {0.5, -0.5, -.5}, {1.0, 0.0} },    
+        { {0.5,  0.5, 0.5}, {0.0, 1.0} },
+        { {0.5,  0.5, -.5}, {1.0, 1.0} },
 
+        { {-0.5, -0.5, -.5},  {0.0, 0.0} },      
+        { { 0.5, -0.5, -.5}, {1.0, 0.0} },    
+        { {-0.5,  -0.5, 0.5}, {0.0, 1.0} },
+        { { 0.5,  -0.5, 0.5}, {1.0, 1.0} },
+        
+        { {-0.5, -0.5, -.5}, {0.0, 0.0} },    
+        { {-0.5, -0.5, 0.5},  {1.0, 0.0} },      
+        { {-0.5,  0.5, -.5}, {0.0, 1.0} },
+        { {-0.5,  0.5, 0.5},  {1.0, 1.0} },
+
+        { {-0.5, -0.5, -.5},  {0.0, 0.0} },      
+        { { 0.5, -0.5, -.5}, {1.0, 0.0} },    
+        { {-0.5,  0.5, -.5}, {0.0, 1.0} },
+        { { 0.5,  0.5, -.5}, {1.0, 1.0} },
+        
     };
 
     ui32 indices[] = {
         0,1,2,
-        2,1,3
-    };
+        2,1,3, 
 
-    vobj.create(vkapp.data, vkapp.gfxCmdPool, (float*)strides,  sizeof(strides), 1);
-    vobj.createIndexBuff(vkapp.data, vkapp.gfxCmdPool, indices, sizeof(indices));
+        0+4,1+4,2+4,
+        2+4,1+4,3+4, 
+
+        0+8,1+8,2+8,
+        2+8,1+8,3+8, 
+        
+        0+12,1+12,2+12,
+        2+12,1+12,3+12, 
+        
+        0+16,2+16,1+16,
+        2+16,3+16,1+16, 
+
+    };
+    
+    vobj.create(vkapp.data, gfxCmdPool, (float*)strides,  sizeof(strides), 1);
+    vobj.createIndexBuff(vkapp.data, gfxCmdPool, indices, sizeof(indices));
 
     Frame frame;
     frame._data.win = &vkapp.win;
-    frame._data.swpchain = &vkapp.swpchain;
-    frame._data.renderpass = &vkapp.renderpass;
-    frame._data.cmdBuffPool = &vkapp.gfxCmdPool;
+    frame._data.swpchain = &swpchain;
+    frame._data.renderpass = &renderpass;
+    frame._data.cmdBuffPool = &gfxCmdPool;
     frame.create(vkapp.data);
 
     VkResult res;
@@ -205,23 +205,6 @@ inline i32 loop(Vkapp& vkapp) {
         if (!frame.begin()) {
             continue;
         }
-        //TODO::Refactor all this compute part
-        //-----------------Compute---------------------
-        VkCommandBufferBeginInfo compCmdBuffBeginInfo{};
-        compCmdBuffBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vkBeginCommandBuffer(compCmdBuff.handle, &compCmdBuffBeginInfo);
-        vkCmdBindPipeline(compCmdBuff.handle, 
-                              VK_PIPELINE_BIND_POINT_COMPUTE, compPipeline.handle);
-        vkCmdBindDescriptorSets(compCmdBuff.handle, 
-                    VK_PIPELINE_BIND_POINT_COMPUTE, compPipeline._lyt, 0, 1, &compDescSet.handle, 0, nullptr);
-        ui32 gX, gY;
-        gX = img1.crtInfo.extent.width  / 16;
-        gY = img1.crtInfo.extent.height / 16;
-        vkCmdDispatch(compCmdBuff.handle, gX, gY, 1);
-        vkEndCommandBuffer(compCmdBuff.handle);
-
-        compCmdBuff.submit();
-        //--------------------------------------------- 
 
         vkCmdBeginRenderPass(frame.cmdBuff.handle, &frame.rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
         vkCmdBindPipeline(frame.cmdBuff.handle, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
@@ -239,10 +222,24 @@ inline i32 loop(Vkapp& vkapp) {
         vkCmdSetViewport(frame.cmdBuff.handle, 0, 1, &viewport);
         vkCmdSetScissor(frame.cmdBuff.handle, 0, 1, &scissor);
         VkDeviceSize voff = 0;
-        color += 0.01;
-        if (color > 1.0)
-            color = 0.0;
-        unf.wrt(&color);
+        static float t = 0.0;
+        t += 1.;
+        projMat = Matrix4<float>(1);
+        viewMat = Matrix4<float>(1);
+        modelMat = Matrix4<float>(1);
+        PerspectiveMat(projMat, 70, 1.0, 0.001, 100.0);
+        RotateMat(modelMat, t, { 0.0, 1.0, 0.0 });
+        TranslateMat(modelMat, tran);
+        LookAt(viewMat, { 1.0,-1.0,0.0 }, tran, { 0.0, 1.0, 0.0 });
+        unfData = projMat * viewMat * modelMat;
+
+        unf.wrt(&unfData);
+
+
+
+
+
+
         vkCmdBindDescriptorSets(frame.cmdBuff.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline._layout, 0, 1, &descSet.handle, 0, nullptr);
         vkCmdBindVertexBuffers(frame.cmdBuff.handle, 0, 1, &vobj.buff.handle, &voff);
         vkCmdBindIndexBuffer(frame.cmdBuff.handle, vobj.indexBuff.handle, voff, VkIndexType::VK_INDEX_TYPE_UINT32);
@@ -251,6 +248,7 @@ inline i32 loop(Vkapp& vkapp) {
 
         frame.end(); 
     }
+
     frame.dstr();
     vobj.dstr();
     unf.dstr();
@@ -259,13 +257,11 @@ inline i32 loop(Vkapp& vkapp) {
     img0.dstr();
     view.dstr();
     pipeline.dstr();
-    //Compute 
-    s.dstr();
-    img1.dstr();
-    vv.dstr();
-    compDescPool.dstr();
-    compPipeline.dstr();
 
+    swpchain.dstr(); 
+    renderpass.dstr();
+    gfxCmdPool.dstr();
+    descPool.dstr();
 
     return 0;
 }

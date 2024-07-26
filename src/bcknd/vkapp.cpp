@@ -37,14 +37,6 @@ i32 Vkapp::init() {
     win.ptr->setResizeCallback(Window::rszcallback);
     if (!win.ptr) {return 1;}
     initVkData();
- 
-    VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, data);
-    VK_CHECK_EXTENDED(gfxCmdPool.create(data, qfam.gfx), "command pool");
-    VK_CHECK_EXTENDED(descPool.create(data), "Descriptor pool");
-    VK_CHECK_EXTENDED(renderpass.create(data, win, true, GfxParams::inst.msaa != MSAAvalue::x1), "rndpass");
-    renderpass.depth.image.changeLyt(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, gfxCmdPool);
-    VK_CHECK_EXTENDED(swpchain.create(data, win, renderpass), "Failed to create swapchain");
-
 
     return 0;
 }
@@ -163,15 +155,6 @@ int Vkapp::initVkData() {
 
 i32 Vkapp::dstr() {
     dbgMsg.dstr();
-
-    swpchain.dstr();
-    
-    renderpass.dstr();
-
-    gfxCmdPool.dstr();
-
-    descPool.dstr();
-
 
     vkDestroySurfaceKHR(data.inst, data.srfc, nullptr);
 

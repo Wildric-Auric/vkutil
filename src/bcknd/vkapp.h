@@ -29,10 +29,5 @@ public:
     Window win; 
     VulkanData data;
     bool validationEnabled = 0;
-    DebugMessenger dbgMsg;
-    
-    Swapchain     swpchain;
-    Renderpass    renderpass;
-    CmdBufferPool gfxCmdPool;
-    DescPool      descPool;
+    DebugMessenger dbgMsg;   
 };
