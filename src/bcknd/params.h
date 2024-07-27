@@ -13,8 +13,8 @@ enum class MSAAvalue {
      
 class GfxParams {   
     public: 
-        float anisotropy     =  0.0;
-        MSAAvalue msaa       = MSAAvalue::x1;
+        float     anisotropy   =  0.0;
+        MSAAvalue msaa         = MSAAvalue::x1;
         static GfxParams inst;
     private:
         GfxParams() = default;

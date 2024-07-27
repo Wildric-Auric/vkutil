@@ -48,7 +48,9 @@ VkResult createLogicalDevice(VulkanData& data, bool validationEnabled) {
     std::vector<VkDeviceQueueCreateInfo> queueFamCrtInfo;
     std::vector<ui32> lut;
 
-    feat.samplerAnisotropy = GfxParams::inst.anisotropy; 
+    feat.samplerAnisotropy  = GfxParams::inst.anisotropy; 
+    feat.tessellationShader = true; 
+    feat.fillModeNonSolid   = true;
 
     VulkanSupport::QueueFamIndices fam;
     VulkanSupport::findQueues(fam, data);
@@ -59,7 +61,7 @@ VkResult createLogicalDevice(VulkanData& data, bool validationEnabled) {
     for (int offset = 0; offset < sizeof(VulkanSupport::QueueFamIndices); offset += sizeof(fam.gfx)) {
         const i32 index = *( (i32*)((arch)(void*)&fam + offset) );
         if (index == -1 || std::find(lut.begin(), lut.end(), index) != lut.end() ) 
-            continue;
+            continue;  
         lut.push_back(index);
         queueFamCrtInfo.push_back({});
         auto& tempCrtInfo = queueFamCrtInfo.back();

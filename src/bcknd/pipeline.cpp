@@ -14,6 +14,7 @@ VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo() {
     _dynState.sType      = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     vrtxInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     inputAsmState.sType  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    tesState.sType       = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
     rasterState.sType    = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     depthState.sType     = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     blendState.sType     = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -21,7 +22,7 @@ VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo() {
 
     inputAsmState.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAsmState.primitiveRestartEnable = VK_FALSE;
-
+ 
     rasterState.cullMode    = VK_CULL_MODE_BACK_BIT;
     rasterState.frontFace   = VK_FRONT_FACE_CLOCKWISE;
     rasterState.polygonMode = VK_POLYGON_MODE_FILL;
@@ -79,12 +80,12 @@ VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo() {
     vrtxInputState.vertexBindingDescriptionCount   = temp0;
 
     //---
-
     crtInfo.sType      = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     crtInfo.stageCount          = 0;
     crtInfo.pStages             = NULL;
     crtInfo.pVertexInputState   = &vrtxInputState;
     crtInfo.pInputAssemblyState = &inputAsmState;
+    crtInfo.pTessellationState  = &tesState;
     crtInfo.pMultisampleState   = &_msaaState;
     crtInfo.pDepthStencilState  = &depthState;
     crtInfo.pColorBlendState    = &blendState;

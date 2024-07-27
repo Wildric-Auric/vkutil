@@ -7,6 +7,8 @@ layout(location = 0) out vec4 fragColor;
 layout(set = 0, binding = 1) uniform sampler2D uTex;
 
 void main() {
-	fragColor = vec4(texture(uTex,uv).xyz, 1.0);
+    float c = 0.7;
+    if (uv.x > 0.99 || uv.y > 0.99 || uv.x < 0.01 || uv.y < 0.01)  c = 0.2;
+	fragColor = vec4(texture(uTex,uv).xyz * c, 1.0);
 }
 

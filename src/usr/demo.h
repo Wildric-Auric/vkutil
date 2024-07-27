@@ -42,19 +42,37 @@ inline i32 loop(Vkapp& vkapp) {
     fragS.fillStageCrtInfo(VK_SHADER_STAGE_FRAGMENT_BIT);
     vertS.fillStageCrtInfo(VK_SHADER_STAGE_VERTEX_BIT);
 
+    std::vector<char> tesc;
+    std::vector<char> tese;
+    io::readBin("..\\build\\bin\\testtese.spv", tese);
+    io::readBin("..\\build\\bin\\testtesc.spv", tesc);
+    Shader teseS, tescS;
+    teseS.fillCrtInfo((const ui32*)tese.data(), tese.size());
+    tescS.fillCrtInfo((const ui32*)tesc.data(), tesc.size());
+    teseS.create(vkapp.data);
+    tescS.create(vkapp.data);
+    teseS.fillStageCrtInfo(VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
+    tescS.fillStageCrtInfo(VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
+
 
     VkPipelineShaderStageCreateInfo stages[] = {
         vertS.stageCrtInfo,
-        fragS.stageCrtInfo
+        fragS.stageCrtInfo,
+        tescS.stageCrtInfo,
+        teseS.stageCrtInfo
     };
 
     pipeline.fillCrtInfo();
-    pipeline.crtInfo.stageCount = 2;
+    pipeline.crtInfo.stageCount = sizeof(stages) / sizeof(stages[0]);
     pipeline.crtInfo.pStages    = stages;
     pipeline.crtInfo.renderPass = renderpass.handle;
 
     pipeline.layoutCrtInfo.setLayoutCount = 1;
     pipeline.layoutCrtInfo.pSetLayouts    = &descPool._lytHandle;
+
+    //pipeline.rasterState.polygonMode = VK_POLYGON_MODE_LINE; //Enables wireframe
+    pipeline.inputAsmState.topology  = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
+    pipeline.tesState.patchControlPoints = 4;
 
     VK_CHECK_EXTENDED(pipeline.create(vkapp.data), "Failed to create Pipeline");
     
@@ -111,9 +129,12 @@ inline i32 loop(Vkapp& vkapp) {
     TranslateMat(modelMat, tran);
     RotateMat(modelMat, 0.0, {0.0, 1.0, 0.0});
     LookAt(viewMat, {0.3,-1.0,0.0}, tran, {0.0, 1.0, 0.0});
-    Matrix4<float> unfData = projMat * viewMat * modelMat;
+    Matrix4<float> mvp = projMat * viewMat * modelMat; 
 
-    //fvec4 test = unfData * fvec4(-0.5, 0.5, 100.0, 1.0);
+    struct {
+        Matrix4<float> mvpM;
+        float subdiv = 1.0; 
+    } unfData;
 
     UniBuff unf;
     //descPool._lytBindings.pop_back();
@@ -150,7 +171,7 @@ inline i32 loop(Vkapp& vkapp) {
         { {-0.5,  0.5, 0.5}, {0.0, 1.0} },
         { { 0.5,  0.5, 0.5}, {1.0, 1.0} },
         
-        { {0.5, -0.5, 0.5},  {0.0, 0.0} },      
+        { {0.5, -0.5, 0.5},  {0.0, 0.0} },   
         { {0.5, -0.5, -.5}, {1.0, 0.0} },    
         { {0.5,  0.5, 0.5}, {0.0, 1.0} },
         { {0.5,  0.5, -.5}, {1.0, 1.0} },
@@ -158,35 +179,35 @@ inline i32 loop(Vkapp& vkapp) {
         { {-0.5, -0.5, -.5},  {0.0, 0.0} },      
         { { 0.5, -0.5, -.5}, {1.0, 0.0} },    
         { {-0.5,  -0.5, 0.5}, {0.0, 1.0} },
-        { { 0.5,  -0.5, 0.5}, {1.0, 1.0} },
+       { { 0.5,  -0.5, 0.5}, {1.0, 1.0} },
         
-        { {-0.5, -0.5, -.5}, {0.0, 0.0} },    
+       { {-0.5, -0.5, -.5}, {0.0, 0.0} },    
         { {-0.5, -0.5, 0.5},  {1.0, 0.0} },      
         { {-0.5,  0.5, -.5}, {0.0, 1.0} },
         { {-0.5,  0.5, 0.5},  {1.0, 1.0} },
 
-        { {-0.5, -0.5, -.5},  {0.0, 0.0} },      
         { { 0.5, -0.5, -.5}, {1.0, 0.0} },    
-        { {-0.5,  0.5, -.5}, {0.0, 1.0} },
+        { {-0.5, -0.5, -.5},  {0.0, 0.0} },      
         { { 0.5,  0.5, -.5}, {1.0, 1.0} },
+        { {-0.5,  0.5, -.5}, {0.0, 1.0} },
         
     };
 
     ui32 indices[] = {
         0,1,2,
-        2,1,3, 
-
-        0+4,1+4,2+4,
-        2+4,1+4,3+4, 
-
-        0+8,1+8,2+8,
-        2+8,1+8,3+8, 
+        3,2,1, 
         
-        0+12,1+12,2+12,
-        2+12,1+12,3+12, 
+        4+0,4+1,4+2,
+        4+3,4+2,4+1, 
         
-        0+16,2+16,1+16,
-        2+16,3+16,1+16, 
+        8+0,8+1,8+2,
+        8+3,8+2,8+1, 
+
+        12+0,12+1,12+2,
+        12+3,12+2,12+1, 
+        
+        16+0,16+1,16+2,
+        16+3,16+2,16+1, 
 
     };
     
@@ -222,6 +243,8 @@ inline i32 loop(Vkapp& vkapp) {
         vkCmdSetViewport(frame.cmdBuff.handle, 0, 1, &viewport);
         vkCmdSetScissor(frame.cmdBuff.handle, 0, 1, &scissor);
         VkDeviceSize voff = 0;
+
+        static float sub = 1.0;
         static float t = 0.0;
         t += 1.;
         projMat = Matrix4<float>(1);
@@ -231,19 +254,32 @@ inline i32 loop(Vkapp& vkapp) {
         RotateMat(modelMat, t, { 0.0, 1.0, 0.0 });
         TranslateMat(modelMat, tran);
         LookAt(viewMat, { 1.0,-1.0,0.0 }, tran, { 0.0, 1.0, 0.0 });
-        unfData = projMat * viewMat * modelMat;
+        unfData.mvpM   = projMat * viewMat * modelMat;
+        
+        if (vkapp.win.ptr->_getKeyboard().onKeyRelease(NWin::Key::NWIN_KEY_RIGHT)) {
+            sub += 1.0;
+            system("cls");
+            std::cout << "Subdivions: " << sub;
+        }
+
+        if (vkapp.win.ptr->_getKeyboard().onKeyRelease(NWin::Key::NWIN_KEY_LEFT)) {
+            sub -= 1.0;
+            if (sub < 1.0)
+                sub = 1.0;
+            system("cls");
+            std::cout << "Subdivions: " << sub;
+        }
+
+        unfData.subdiv = sub;
 
         unf.wrt(&unfData);
-
-
-
-
 
 
         vkCmdBindDescriptorSets(frame.cmdBuff.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline._layout, 0, 1, &descSet.handle, 0, nullptr);
         vkCmdBindVertexBuffers(frame.cmdBuff.handle, 0, 1, &vobj.buff.handle, &voff);
         vkCmdBindIndexBuffer(frame.cmdBuff.handle, vobj.indexBuff.handle, voff, VkIndexType::VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(frame.cmdBuff.handle, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
+        vkCmdDraw(frame.cmdBuff.handle, sizeof(strides)/sizeof(strides[0]), 1, 0, 0);
+        //vkCmdDrawIndexed(frame.cmdBuff.handle, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
         vkCmdEndRenderPass(frame.cmdBuff.handle);
 
         frame.end(); 

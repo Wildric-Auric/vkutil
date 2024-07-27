@@ -34,6 +34,7 @@ class Pipeline {
     VkPipelineDepthStencilStateCreateInfo  depthState{};
     VkPipelineColorBlendStateCreateInfo    blendState{};
     VkPipelineViewportStateCreateInfo      viewportState{};
+    VkPipelineTessellationStateCreateInfo  tesState{};
     VkPipelineLayoutCreateInfo             layoutCrtInfo{};
 
 
