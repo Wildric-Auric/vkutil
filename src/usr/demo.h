@@ -106,7 +106,7 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     ui32 imgsize;
     ivec2 vecsize;
     i32   channels; 
-    stbi_uc* pixels = stbi_load("../res/texe.jpg", &vecsize.x, &vecsize.y, &channels, STBI_rgb_alpha);
+    stbi_uc* pixels = stbi_load("../res/tex.jpg", &vecsize.x, &vecsize.y, &channels, STBI_rgb_alpha);
     imgsize = vecsize.x * vecsize.y * 4;
 
     Sampler smpler;

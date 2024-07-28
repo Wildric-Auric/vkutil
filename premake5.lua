@@ -1,4 +1,4 @@
-workspace "VKIFR"
+workspace "vkUtilExample"
 	configurations {"Release", "Debug"}
 	architecture "x64"
 	language "C++"
@@ -8,11 +8,11 @@ workspace "VKIFR"
     characterset("MBCS")
     buildoptions { "/EHsc" }
 	location "build"
-	project "VKIFR"
+	project "vkUtilExample"
 	kind "ConsoleApp"
 	includedirs {
 		"vendor/stb/",
-		"C:/VulkanSDK/1.3.268.0/include/",
+		"C:/VulkanSDK/1.3.283.0/include/",
 		"src/",
         "vendor/tiny/",
         "vendor/"
@@ -28,8 +28,8 @@ workspace "VKIFR"
         "vendor/nwin/*.h"
 	}
 	links {
-        	"dwmapi.lib",
-		"C:/VulkanSDK/1.3.268.0/Lib/vulkan-1.lib"
+        "dwmapi.lib",
+		"C:/VulkanSDK/1.3.283.0/Lib/vulkan-1.lib"
 	}
 	filter "configurations:Release"
 		optimize "On"
