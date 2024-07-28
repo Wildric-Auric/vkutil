@@ -1,8 +1,10 @@
 #version 450 
 layout(quads, equal_spacing, cw) in;
 layout(location = 0) in vec2 uv[];
-layout(location = 0) out vec2 outuv;
 layout(location = 1) in  mat4 mvp[];
+
+layout(location = 0) out vec2 outuv;
+
 void main() {
     vec2 localCoord = vec2(gl_TessCoord);
 

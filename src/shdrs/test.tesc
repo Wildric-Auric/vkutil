@@ -17,10 +17,10 @@ void main() {
     outuv[idd] = uv[idd];
 
     if (idd == 0) {
-        gl_TessLevelOuter[0] = int(subdiv[0]);
-        gl_TessLevelOuter[1] = int(subdiv[0]);
-        gl_TessLevelOuter[2] = int(subdiv[0]);
-        gl_TessLevelOuter[3] = int(subdiv[0]); 
+        //gl_TessLevelOuter[0] = int(subdiv[0]);
+        //gl_TessLevelOuter[1] = int(subdiv[0]);
+        //gl_TessLevelOuter[2] = int(subdiv[0]);
+        //gl_TessLevelOuter[3] = int(subdiv[0]); 
 
         gl_TessLevelInner[0] = int(subdiv[0]);
         gl_TessLevelInner[1] = int(subdiv[0]);

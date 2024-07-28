@@ -51,6 +51,7 @@ VkResult createLogicalDevice(VulkanData& data, bool validationEnabled) {
     feat.samplerAnisotropy  = GfxParams::inst.anisotropy; 
     feat.tessellationShader = true; 
     feat.fillModeNonSolid   = true;
+    feat.geometryShader     = true;
 
     VulkanSupport::QueueFamIndices fam;
     VulkanSupport::findQueues(fam, data);

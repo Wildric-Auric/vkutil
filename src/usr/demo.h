@@ -13,7 +13,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 
-inline i32 loop(Vkapp& vkapp) {
+inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
 
     CmdBufferPool gfxCmdPool;
     DescPool      descPool;
@@ -28,6 +28,7 @@ inline i32 loop(Vkapp& vkapp) {
     VK_CHECK_EXTENDED(swpchain.create(vkapp.data, vkapp.win, renderpass), "Failed to create swapchain");
 
     Pipeline      pipeline;
+    Pipeline      wireframePipeline; 
     
     std::vector<char> frag;
     std::vector<char> vert;
@@ -41,7 +42,7 @@ inline i32 loop(Vkapp& vkapp) {
     VK_CHECK_EXTENDED(vertS.create(vkapp.data), "vertshader");
     fragS.fillStageCrtInfo(VK_SHADER_STAGE_FRAGMENT_BIT);
     vertS.fillStageCrtInfo(VK_SHADER_STAGE_VERTEX_BIT);
-
+    //Tessellation
     std::vector<char> tesc;
     std::vector<char> tese;
     io::readBin("..\\build\\bin\\testtese.spv", tese);
@@ -53,13 +54,20 @@ inline i32 loop(Vkapp& vkapp) {
     tescS.create(vkapp.data);
     teseS.fillStageCrtInfo(VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
     tescS.fillStageCrtInfo(VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
-
+    //Geometry
+    std::vector<char> geom;
+    io::readBin("..\\build\\bin\\testgeom.spv", geom);
+    Shader geomS;
+    geomS.fillCrtInfo((const ui32*)geom.data(), geom.size());
+    geomS.create(vkapp.data);
+    geomS.fillStageCrtInfo(VK_SHADER_STAGE_GEOMETRY_BIT);
 
     VkPipelineShaderStageCreateInfo stages[] = {
         vertS.stageCrtInfo,
         fragS.stageCrtInfo,
         tescS.stageCrtInfo,
-        teseS.stageCrtInfo
+        teseS.stageCrtInfo,
+        geomS.stageCrtInfo
     };
 
     pipeline.fillCrtInfo();
@@ -69,21 +77,36 @@ inline i32 loop(Vkapp& vkapp) {
 
     pipeline.layoutCrtInfo.setLayoutCount = 1;
     pipeline.layoutCrtInfo.pSetLayouts    = &descPool._lytHandle;
-
-    //pipeline.rasterState.polygonMode = VK_POLYGON_MODE_LINE; //Enables wireframe
+    
     pipeline.inputAsmState.topology  = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
     pipeline.tesState.patchControlPoints = 4;
 
+    wireframePipeline.fillCrtInfo();
+    wireframePipeline.crtInfo.stageCount = pipeline.crtInfo.stageCount; 
+    wireframePipeline.crtInfo.pStages    = stages;
+    wireframePipeline.crtInfo.renderPass = renderpass.handle;
+    wireframePipeline.layoutCrtInfo.setLayoutCount = 1;
+    wireframePipeline.layoutCrtInfo.pSetLayouts    = &descPool._lytHandle;
+    wireframePipeline.inputAsmState.topology       = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
+    wireframePipeline.tesState.patchControlPoints  = 4;
+
+    wireframePipeline.rasterState.polygonMode = VK_POLYGON_MODE_LINE; 
+
     VK_CHECK_EXTENDED(pipeline.create(vkapp.data), "Failed to create Pipeline");
-    
+    VK_CHECK_EXTENDED(wireframePipeline.create(vkapp.data), "Failed to create wireframe pipeline");
+ 
     fragS.dstr();
     vertS.dstr();
+    tescS.dstr();
+    teseS.dstr();
+    geomS.dstr();
+
     DescSet     descSet{};
     //Creating image texture
     ui32 imgsize;
     ivec2 vecsize;
     i32   channels; 
-    stbi_uc* pixels = stbi_load("../res/tex.jpg", &vecsize.x, &vecsize.y, &channels, STBI_rgb_alpha);
+    stbi_uc* pixels = stbi_load("../res/texe.jpg", &vecsize.x, &vecsize.y, &channels, STBI_rgb_alpha);
     imgsize = vecsize.x * vecsize.y * 4;
 
     Sampler smpler;
@@ -222,13 +245,22 @@ inline i32 loop(Vkapp& vkapp) {
     frame.create(vkapp.data);
 
     VkResult res;
+
+    VkPhysicalDeviceProperties prop;
+
     while (vkapp.win.ptr->shouldLoop()) {        
         if (!frame.begin()) {
             continue;
         }
 
         vkCmdBeginRenderPass(frame.cmdBuff.handle, &frame.rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
-        vkCmdBindPipeline(frame.cmdBuff.handle, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
+
+        Pipeline* ptemp = &pipeline;
+        if (vkapp.win.ptr->_getKeyboard().isKeyPressed((NWin::Key)'W')) {
+            ptemp = &wireframePipeline;
+        }
+
+        vkCmdBindPipeline(frame.cmdBuff.handle, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, ptemp->handle);
         //Dynamic states 
         VkViewport viewport;
         VkRect2D   scissor;
@@ -275,7 +307,7 @@ inline i32 loop(Vkapp& vkapp) {
         unf.wrt(&unfData);
 
 
-        vkCmdBindDescriptorSets(frame.cmdBuff.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline._layout, 0, 1, &descSet.handle, 0, nullptr);
+        vkCmdBindDescriptorSets(frame.cmdBuff.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, ptemp->_layout, 0, 1, &descSet.handle, 0, nullptr);
         vkCmdBindVertexBuffers(frame.cmdBuff.handle, 0, 1, &vobj.buff.handle, &voff);
         vkCmdBindIndexBuffer(frame.cmdBuff.handle, vobj.indexBuff.handle, voff, VkIndexType::VK_INDEX_TYPE_UINT32);
         vkCmdDraw(frame.cmdBuff.handle, sizeof(strides)/sizeof(strides[0]), 1, 0, 0);
@@ -293,6 +325,7 @@ inline i32 loop(Vkapp& vkapp) {
     img0.dstr();
     view.dstr();
     pipeline.dstr();
+    wireframePipeline.dstr();
 
     swpchain.dstr(); 
     renderpass.dstr();
