@@ -2,7 +2,7 @@
 #include "params.h"
 #include "support.h"
 
- VkImageViewCreateInfo& imgView::fillCrtInfo(const img& im) {
+ VkImageViewCreateInfo& ImgView::fillCrtInfo(const Img& im) {
     crtInfo.sType        = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     crtInfo.format       = im.crtInfo.format;
     crtInfo.image        = im.handle;
@@ -20,16 +20,16 @@
     return crtInfo;
 }
 
-VkResult imgView::create(const VulkanData& vkdata) {
+VkResult ImgView::create(const VulkanData& vkdata) {
     _vkdata = vkdata;
     return vkCreateImageView(vkdata.dvc, &crtInfo, nullptr, &handle);
 }
 
-void imgView::dstr() {
+void ImgView::dstr() {
     vkDestroyImageView(_vkdata.dvc, handle, nullptr);
 }
     
-VkImageCreateInfo& img::fillCrtInfo() {
+VkImageCreateInfo& Img::fillCrtInfo() {
     crtInfo.sType     = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     crtInfo.imageType = VK_IMAGE_TYPE_2D;
     crtInfo.format    = VK_FORMAT_R8G8B8A8_SRGB;
@@ -46,11 +46,11 @@ VkImageCreateInfo& img::fillCrtInfo() {
     return crtInfo;
 };
     
-void img::setMaxmmplvl() {
+void Img::setMaxmmplvl() {
     crtInfo.mipLevels    = (int)(Max<float>(std::log2(crtInfo.extent.width), std::log2(crtInfo.extent.height))) + 1;
 }
 
-VkResult img::create(const VulkanData& vkdata) {
+VkResult Img::create(const VulkanData& vkdata) {
     VkMemoryRequirements memReq;
     VkMemoryAllocateInfo allocInfo{};
     _vkdata = vkdata;
@@ -68,7 +68,7 @@ VkResult img::create(const VulkanData& vkdata) {
     return res;
 }
 
-void img::dstr() {
+void Img::dstr() {
     vkDestroyImage(_vkdata.dvc, handle, nullptr);
     vkFreeMemory(_vkdata.dvc, _mem, nullptr);
 }
@@ -91,7 +91,7 @@ void Framebuffer::dstr() {
     vkDestroyFramebuffer(_vkdata.dvc, handle, nullptr);
 }
 
-VkResult img::changeLyt(VkImageLayout newlyt, CmdBufferPool& p) {
+VkResult Img::changeLyt(VkImageLayout newlyt, CmdBufferPool& p) {
     VkImageLayout oldlyt = crtInfo.initialLayout;
     if (oldlyt == newlyt) 
         return VK_SUCCESS;
@@ -169,7 +169,7 @@ VkResult img::changeLyt(VkImageLayout newlyt, CmdBufferPool& p) {
     return VK_SUCCESS;
 }
 
-void img::cpyFrom(CmdBufferPool& p, img& other, const ivec2& size, const ivec2& offset) {
+void Img::cpyFrom(CmdBufferPool& p, Img& other, const ivec2& size, const ivec2& offset) {
    CmdBuff cmdBuff;
    VkImageCopy rgn{};
 
@@ -191,7 +191,7 @@ void img::cpyFrom(CmdBufferPool& p, img& other, const ivec2& size, const ivec2& 
    p.execEnd(cmdBuff);
 }
 
-void img::cpyFrom(CmdBufferPool& p, Buffer& buff, const ivec2& size, ui32 offset) { 
+void Img::cpyFrom(CmdBufferPool& p, Buffer& buff, const ivec2& size, ui32 offset) { 
     CmdBuff cmdbuff;
     VkBufferImageCopy rgn{};
     rgn.imageExtent.width  = size.x;
@@ -214,7 +214,7 @@ void img::cpyFrom(CmdBufferPool& p, Buffer& buff, const ivec2& size, ui32 offset
     p.execEnd(cmdbuff);
 }
 
-void img::genmmp(CmdBufferPool& p, ui32 queueIndex) {
+void Img::genmmp(CmdBufferPool& p, ui32 queueIndex) {
     i32 qoff = offsetof(VulkanSupport::QueueFamIndices, gfx);
     VkImageMemoryBarrier br{};
     VkQueue q = VulkanSupport::getQueue(_vkdata, qoff);

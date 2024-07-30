@@ -6,14 +6,14 @@
 #include "buff.h"
 
 
-class img {
+class Img {
     public:
     VkImageCreateInfo& fillCrtInfo();
     VkResult create(const VulkanData&);
     void dstr();
     VkResult changeLyt(VkImageLayout newlyt, CmdBufferPool& ); 
 
-    void     cpyFrom(CmdBufferPool&, img&    other, const ivec2& size, const ivec2& offset);
+    void     cpyFrom(CmdBufferPool&, Img&    other, const ivec2& size, const ivec2& offset);
 
     void     cpyFrom(CmdBufferPool&, Buffer& buff, const ivec2& size, ui32 offset);
     
@@ -28,9 +28,9 @@ class img {
     VkMemoryPropertyFlags memProp = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 };
 
-class imgView {
+class ImgView {
     public:
-    VkImageViewCreateInfo& fillCrtInfo(const img&);
+    VkImageViewCreateInfo& fillCrtInfo(const Img&);
     VkResult create(const VulkanData&);
     void dstr();
 
