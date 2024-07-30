@@ -22,9 +22,17 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     
     VulkanSupport::QueueFamIndices qfam; VulkanSupport::findQueues(qfam, vkapp.data);
     VK_CHECK_EXTENDED(gfxCmdPool.create(vkapp.data, qfam.gfx), "command pool");
+
     VK_CHECK_EXTENDED(descPool.create(vkapp.data), "Descriptor pool");
-    VK_CHECK_EXTENDED(renderpass.create(vkapp.data, vkapp.win, true, GfxParams::inst.msaa != MSAAvalue::x1), "rndpass");
-    renderpass.depth.image.changeLyt(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, gfxCmdPool);
+   
+    AttachmentContainer att;
+    Attachment* tmp = att.add(); 
+    tmp->desc.format = VK_FORMAT_R8G8B8A8_SRGB; tmp->desc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    att.addDepth(); 
+    //att.addResolve();
+    renderpass._subpasses.add(vkapp.win, vkapp.data, att, nullptr);
+    VK_CHECK_EXTENDED(renderpass.create(vkapp.data, vkapp.win), "rndpass");
+
     VK_CHECK_EXTENDED(swpchain.create(vkapp.data, vkapp.win, renderpass), "Failed to create swapchain");
 
     Pipeline      pipeline;
@@ -106,7 +114,7 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     ui32 imgsize;
     ivec2 vecsize;
     i32   channels; 
-    stbi_uc* pixels = stbi_load("../res/tex.jpg", &vecsize.x, &vecsize.y, &channels, STBI_rgb_alpha);
+    stbi_uc* pixels = stbi_load("../res/brick.jpg", &vecsize.x, &vecsize.y, &channels, STBI_rgb_alpha);
     imgsize = vecsize.x * vecsize.y * 4;
 
     Sampler smpler;
@@ -114,8 +122,8 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     smpler.create(vkapp.data);
 
     Buffer tempImg;
-    img    img0;
-    imgView view;
+    Img    img0;
+    ImgView view;
 
     tempImg.fillCrtInfo();
     tempImg.crtInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;

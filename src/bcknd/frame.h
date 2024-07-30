@@ -6,25 +6,68 @@
 #include "vkimg.h"
 
 struct AttachmentData {
-    bool    valid = false;
-    img     image;
-    imgView view;
+    Img     image;
+    ImgView view; 
+};
+
+class Attachment {
+    public:
+    void setup();
+    VkAttachmentDescription desc{};
+    VkAttachmentReference   ref{};
+    Img      img;
+    ImgView  view;
+};
+
+class AttachmentContainer {
+    public:
+    Attachment*  getDepth();
+    Attachment*  getResolve();
+    Attachment*  get(arch index);
+    Attachment*  add();
+    Attachment*  addDepth();
+    Attachment*  addResolve();
+
+    //Attachment*  add(VkAttachmentDescription&);
+
+    std::vector<Attachment> _container;
+    Attachment depth;
+    Attachment resolve; 
+    bool _hasDepth       = 0;
+    bool _hasResolve     = 0;
+};
+
+class Subpass { 
+    public:
+    VkSubpassDescription desc{};
+};
+
+class SubpassContainer {
+    public:
+    void add(const Window& win, const VulkanData& vkdata, AttachmentContainer& atts, VkSubpassDependency** depedencyWithPrevious);
+    void addDepthRes(const Window&, const VulkanData&);
+    void addResolveRes(const Window&, const VulkanData&);
+
+   
+    std::vector<VkSubpassDependency>     _dpn;
+    std::vector<VkSubpassDescription>    descs;
+
+    std::vector<VkAttachmentDescription> attDescs;
+    std::vector<VkAttachmentReference>   attRefs;
+
+    std::vector<AttachmentData>          resources;
 };
 
 class Renderpass {
 public:
-    VkResult create(const VulkanData&, const Window& win, bool hasDepthAttachment = false, bool hasMsaa = false);
+    VkResult create(const VulkanData&, const Window& win);
     void     dstr();
 
-    VkResult createRes(const Window& win, bool hasDepth = false, bool hasMsaa = false);
     void     dstrRes();
 
-    VkRenderPass handle;
-    VulkanData _vkdata;
-
-    AttachmentData depth;
-    AttachmentData msaaA;
-
+    VkRenderPass      handle;
+    VulkanData       _vkdata;
+    SubpassContainer _subpasses;
 };
 
 class Swapchain {
@@ -36,7 +79,7 @@ class Swapchain {
 
         VkSwapchainKHR handle = nullptr;
         std::vector<VkImage>     imgs;
-        std::vector<imgView>     views;
+        std::vector<ImgView>     views;
         std::vector<Framebuffer> fmbuffs;
         VulkanData     _vkdata;
 };

@@ -62,7 +62,7 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
     vkGetSwapchainImagesKHR(vkdata.dvc, handle, &imgCount, nullptr);
     imgs.resize(imgCount);
     vkGetSwapchainImagesKHR(vkdata.dvc, handle, &imgCount, imgs.data());
-    img fake;
+    Img fake;
     //Create swapchaine image views and framebuffers
     views.resize(imgCount);
     fmbuffs.resize(imgCount);
@@ -76,22 +76,15 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
         fmbuffs[i].fillCrtInfo();
         fmbuffs[i].crtInfo.width  = crtInfo.imageExtent.width;
         fmbuffs[i].crtInfo.height = crtInfo.imageExtent.height;
-        //TODO::Abstract cur and attLen in renderpass
-        ui32         cur    = 0;
-        ui32         attLen =   1 + (rdrpass.depth.valid) + (rdrpass.msaaA.valid);
-        std::vector<VkImageView> att(attLen);
+        //TODO::Fix support for multiple Renderpasses
+        std::vector<VkImageView> att;
+        att.push_back(views[i].handle);
 
-        if (rdrpass.msaaA.valid) {
-            att[cur++] = rdrpass.msaaA.view.handle;
-            if (rdrpass.depth.valid) att[cur++] = rdrpass.depth.view.handle;
-            att[cur++] = views[i].handle;
+        for (AttachmentData& data : rdrpass._subpasses.resources) {
+            att.push_back(data.view.handle);
         }
-        else {
-            att[cur++] = views[i].handle;
-            if (rdrpass.depth.valid) att[cur++] = rdrpass.depth.view.handle;
-        }
-            
-        res = fmbuffs[i].create(_vkdata, rdrpass.handle, att.data(), attLen);
+
+        res = fmbuffs[i].create(_vkdata, rdrpass.handle, att.data(), att.size());
     }
     return res;
 }
@@ -117,114 +110,177 @@ void Swapchain::dstr() {
     vkDestroySwapchainKHR(_vkdata.dvc, handle, nullptr);
 }
 
-VkResult Renderpass::create(const VulkanData& vkdata, const Window& win, bool hasDepthAttachment, bool msaa) {
-    int cur = 0;
-    uchar attSize = 1 + (uchar)msaa + (uchar)hasDepthAttachment;
+void Attachment::setup() {
+    desc.format      = VK_FORMAT_R8G8B8A8_UNORM;
+    desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    desc.finalLayout   = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    desc.samples       = (VkSampleCountFlagBits)GfxParams::inst.msaa;
+    desc.loadOp        = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    desc.storeOp       = VK_ATTACHMENT_STORE_OP_STORE;
+    desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    desc.stencilStoreOp= VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    ref.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+}
+
+Attachment* AttachmentContainer::getDepth() {
+    if (_hasDepth) return nullptr;
+    return &depth;
+}
+
+Attachment* AttachmentContainer::getResolve() {
+    if (_hasResolve) return nullptr;
+    return &resolve;
+}
+
+Attachment* AttachmentContainer::get(arch index) {
+    return &_container[index];
+}
+
+Attachment* AttachmentContainer::add() {
+    _container.push_back({});
+    Attachment* att = &_container.back();
+    att->setup();
+    return att;
+}
+
+Attachment*  AttachmentContainer::addDepth() {
+    Attachment* att = &depth;
+    depth.setup();
+    att->desc.format      = VK_FORMAT_D24_UNORM_S8_UINT;
+    att->desc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    att->desc.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
+    att->ref.layout       = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+   _hasDepth = true; 
+    return att;
+}
+
+Attachment*  AttachmentContainer::addResolve() {
+    Attachment* att = &resolve;
+    resolve.setup();
+    att->desc.samples     = VK_SAMPLE_COUNT_1_BIT;
+    att->desc.format      = VK_FORMAT_R8G8B8A8_SRGB;
+    att->desc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; 
+    att->desc.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
+    att->ref.layout       = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    _hasResolve = true;
+    return att;
+}
+
+void SubpassContainer::addDepthRes(const Window& win, const VulkanData& _vkdata) {
+        resources.push_back({});
+        AttachmentData& depth = resources.back();
+
+        depth.image.fillCrtInfo();
+        depth.image.crtInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        depth.image.crtInfo.samples       = (VkSampleCountFlagBits)GfxParams::inst.msaa;
+        depth.image.crtInfo.format        = VK_FORMAT_D24_UNORM_S8_UINT;
+        depth.image.crtInfo.extent.width  =  win.drawArea.x; 
+        depth.image.crtInfo.extent.height = win.drawArea.y;
+        depth.image.crtInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depth.image.create(_vkdata);
+
+        depth.view.fillCrtInfo(depth.image);
+        depth.view.crtInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        depth.view.create(_vkdata);
+}
+
+void SubpassContainer::addResolveRes(const Window& win, const VulkanData& _vkdata) {
+       resources.push_back({});
+       AttachmentData& msaaA = resources.back();
+
+       msaaA.image.fillCrtInfo();
+       msaaA.image.crtInfo.usage   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+       msaaA.image.crtInfo.samples = (VkSampleCountFlagBits)GfxParams::inst.msaa;
+       msaaA.image.crtInfo.extent.width  = win.drawArea.x;
+       msaaA.image.crtInfo.extent.height = win.drawArea.y;
+       msaaA.image.create(_vkdata);
+
+       msaaA.view.fillCrtInfo(msaaA.image);
+       msaaA.view.crtInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+       msaaA.view.create(_vkdata);
+}
+
+void SubpassContainer::add(const Window& win, const VulkanData& vkdata, AttachmentContainer& atts, VkSubpassDependency** depedencyWithPrevious) {
+    Subpass s;
+    ui32 beg = attDescs.size();
+    ui32 cur = attDescs.size();
+    ui32 resOffset  = 0;
+    ui32 dpthOffset = 0;
+    for (Attachment& att : atts._container) {
+        att.ref.attachment = cur++; 
+        attDescs.push_back(att.desc);
+        attRefs.push_back(att.ref);
+    }
+
+    if (atts._hasResolve) {
+        resOffset = cur;
+        atts.resolve.ref.attachment = cur++; 
+        attDescs.push_back(atts.resolve.desc);
+        attRefs.push_back(atts.resolve.ref);
+        addResolveRes(win, vkdata);
+    }
+
+    if (atts._hasDepth) {
+        dpthOffset = cur;
+        atts.depth.ref.attachment = cur++;
+        attDescs.push_back(atts.depth.desc);
+        attRefs.push_back(atts.depth.ref);
+        addDepthRes(win, vkdata);
+    }
+
+    s.desc.pColorAttachments       = attRefs.data() + beg;
+    s.desc.colorAttachmentCount    = atts._container.size();
+    s.desc.pResolveAttachments     = resOffset == 0 ? nullptr:attRefs.data() + resOffset; //TODO::Chnage when I have multiple resolve attachments
+    s.desc.pDepthStencilAttachment = dpthOffset == 0? nullptr:attRefs.data() + dpthOffset;
+
+    descs.push_back(s.desc);
+
+    _dpn.push_back({});
+    VkSubpassDependency& t = _dpn.back();
+    if (_dpn.size() == 1) {
+        t.srcSubpass           = VK_SUBPASS_EXTERNAL;
+        t.dstSubpass           = 0;
+
+        t.srcStageMask         = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        t.dstStageMask         = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT; 
+
+        t.srcAccessMask        = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        t.dstAccessMask        = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    }
+
+    else {
+        //Default is subpasses wait for previous to finish
+        t.srcSubpass           = _dpn.size() - 2;
+        t.dstSubpass           = _dpn.size() - 1;
+
+        t.srcStageMask         = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        t.dstStageMask         = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT; 
+
+        t.srcAccessMask        = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        t.dstAccessMask        = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+    }
+    if (depedencyWithPrevious != nullptr)
+        *depedencyWithPrevious = &t;
+    return ;
+}
+
+
+VkResult Renderpass::create(const VulkanData& vkdata, const Window& win) {
+    VkRenderPassCreateInfo crtInfo{};
 
     _vkdata = vkdata;
-    VkRenderPassCreateInfo crtInfo{};
-    VkSubpassDescription   subpass{};
-
-    VkSurfaceFormatKHR srfcFmt;
-    VulkanSupport::SwpchainCap spec;
-    VulkanSupport::getSwapchaincap(_vkdata, spec);
-    srfcFmt = spec.srfcFormats[VulkanSupport::selSrfcFmt(spec)];
-
-    //Attachments
-    std::vector<VkAttachmentDescription> att;
-    att.resize(attSize, {});
-    cur = 0;
-
-    VkAttachmentDescription& colDesc = att[cur++];
-    
-    colDesc.format = srfcFmt.format;
-    colDesc.samples = msaa ? (VkSampleCountFlagBits)GfxParams::inst.msaa : VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
-    colDesc.loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colDesc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-    colDesc.finalLayout    = (msaa) ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-    
-    if (hasDepthAttachment) {
-        VkAttachmentDescription& dpthDesc = att[cur++];
-        dpthDesc.format         = VK_FORMAT_D32_SFLOAT_S8_UINT;
-        dpthDesc.samples        = (VkSampleCountFlagBits)GfxParams::inst.msaa;
-        dpthDesc.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        dpthDesc.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        dpthDesc.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        dpthDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        dpthDesc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-        dpthDesc.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    }
-
-    if (msaa) {
-        VkAttachmentDescription& resolveDesc = att[cur++];
-        resolveDesc.format  = srfcFmt.format;
-        resolveDesc.samples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
-        resolveDesc.loadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        resolveDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        resolveDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        resolveDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        resolveDesc.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-        resolveDesc.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    }
-
      
-    //References
-    VkAttachmentReference  colAttRef{};
-    VkAttachmentReference  resolveAttRef{};
-    VkAttachmentReference  dpthAttRef{};
-    cur = 0;
-
-    colAttRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    resolveAttRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    dpthAttRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    //Subpass
-    subpass.colorAttachmentCount = 1;
-
-    colAttRef.attachment = cur++;
-    subpass.pColorAttachments    = &colAttRef;
-
-    if (hasDepthAttachment) {
-        dpthAttRef.attachment = cur++;
-        subpass.pDepthStencilAttachment = &dpthAttRef;
-    }
-    
-    if (msaa) {
-        resolveAttRef.attachment = cur++;
-        subpass.pResolveAttachments  = &resolveAttRef;
-    }
-    
-    VkSubpassDependency dpn{};
-    dpn.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dpn.dstSubpass = 0;
-
-    dpn.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    dpn.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT          | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-    dpn.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dpn.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT          | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-
     crtInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     crtInfo.dependencyCount = 1;
-    crtInfo.pDependencies   = &dpn;
-    crtInfo.subpassCount = 1;
-    crtInfo.pSubpasses   = &subpass;
-    crtInfo.attachmentCount = att.size();
-    crtInfo.pAttachments    = att.data();
+    crtInfo.pDependencies   = _subpasses._dpn.data();
+    crtInfo.subpassCount    = _subpasses.descs.size();
+    crtInfo.pSubpasses      = _subpasses.descs.data();
+    crtInfo.attachmentCount = _subpasses.attDescs.size();
+    crtInfo.pAttachments    = _subpasses.attDescs.data();
     
     VkResult res = vkCreateRenderPass(_vkdata.dvc, &crtInfo, nullptr, &handle);
-    if (res != VK_SUCCESS) {
-        return res;
-    }
-
-    res = createRes(win, hasDepthAttachment, msaa);
-
+ 
     return res;
 }
 
@@ -234,53 +290,13 @@ void Renderpass::dstr() {
 }
 
 void Renderpass::dstrRes() {
-    if (msaaA.valid) {
-        msaaA.view.dstr();
-        msaaA.image.dstr(); 
-    }
-
-    if (depth.valid) {
-        depth.view.dstr();
-        depth.image.dstr();
+    for (AttachmentData& d : _subpasses.resources) {
+            d.view.dstr();
+            d.image.dstr();
+            d.view.crtInfo.format = (VkFormat)0;
     }
 }
 
-VkResult Renderpass::createRes(const Window& win, bool hasDepthAttachment, bool msaa) {
-    VkResult res = VK_SUCCESS;
-    if (msaa) {
-       msaaA.valid = true; 
-       msaaA.image.fillCrtInfo();
-       msaaA.image.crtInfo.usage   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-       msaaA.image.crtInfo.samples = (VkSampleCountFlagBits)GfxParams::inst.msaa;
-       msaaA.image.crtInfo.extent.width  = win.drawArea.x;
-       msaaA.image.crtInfo.extent.height = win.drawArea.y;
-       res = msaaA.image.create(_vkdata);
-       if (res != VK_SUCCESS) return res;
-
-       msaaA.view.fillCrtInfo(msaaA.image);
-       msaaA.view.crtInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-       res = msaaA.view.create(_vkdata);
-       if (res != VK_SUCCESS) return res;
-    }   
-
-    if (hasDepthAttachment) {
-        depth.valid = true;
-        depth.image.fillCrtInfo();
-        depth.image.crtInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-        depth.image.crtInfo.samples = (VkSampleCountFlagBits)GfxParams::inst.msaa;
-        depth.image.crtInfo.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
-        depth.image.crtInfo.extent.width =  win.drawArea.x; 
-        depth.image.crtInfo.extent.height = win.drawArea.y;
-        res = depth.image.create(_vkdata);
-        if (res != VK_SUCCESS) return res;
-
-        depth.view.fillCrtInfo(depth.image);
-        depth.view.crtInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        res = depth.view.create(_vkdata);
-        if (res != VK_SUCCESS) return res;
-    }
-    return res;
-}
 
 void Frame::end() {
         VkResult res;
@@ -301,9 +317,9 @@ void Frame::end() {
             }
             _data.swpchain->dstr();
             _data.renderpass->dstrRes();
-
-            _data.renderpass->createRes(*_data.win, _data.renderpass->depth.valid, _data.renderpass->msaaA.valid);
-            _data.renderpass->depth.image.changeLyt(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, *_data.cmdBuffPool);
+            //TODO::Finish THIS
+//            _data.renderpass->createRes(*_data.win, _data.renderpass->depth.valid, _data.renderpass->msaaA.valid);
+//            _data.renderpass->depth.image.changeLyt(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, *_data.cmdBuffPool);
             _data.swpchain->create(_vkdata, *_data.win, *_data.renderpass);
             rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
         }
@@ -417,10 +433,10 @@ bool Frame::begin() {
 
             _data.swpchain->dstr();
             _data.renderpass->dstrRes();
-
-            _data.renderpass->createRes(*_data.win,  _data.renderpass->depth.valid, _data.renderpass->msaaA.valid);
-            _data.renderpass->depth.image.changeLyt(
-            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, *_data.cmdBuffPool);
+            //TODO::Finish this
+//            _data.renderpass->createRes(*_data.win,  _data.renderpass->depth.valid, _data.renderpass->msaaA.valid);
+//            _data.renderpass->depth.image.changeLyt(
+            //VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, *_data.cmdBuffPool);
             _data.swpchain->create(data, *_data.win, *_data.renderpass);
             rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
             _data.win->ptr->_getKeyboard().update();
