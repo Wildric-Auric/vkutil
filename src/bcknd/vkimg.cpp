@@ -26,6 +26,7 @@ VkResult ImgView::create(const VulkanData& vkdata) {
 }
 
 void ImgView::dstr() {
+    if (handle == nullptr) return;
     vkDestroyImageView(_vkdata.dvc, handle, nullptr);
 }
     
@@ -69,6 +70,7 @@ VkResult Img::create(const VulkanData& vkdata) {
 }
 
 void Img::dstr() {
+    if (handle == nullptr) return;
     vkDestroyImage(_vkdata.dvc, handle, nullptr);
     vkFreeMemory(_vkdata.dvc, _mem, nullptr);
 }
