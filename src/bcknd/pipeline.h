@@ -40,7 +40,7 @@ class Pipeline {
 
     VkPipelineMultisampleStateCreateInfo _msaaState{};
     VkPipelineDynamicStateCreateInfo     _dynState{};
-    VkPipelineColorBlendAttachmentState  _colBlendAtt;
+    std::vector<VkPipelineColorBlendAttachmentState> _colBlendAtt;
 
     VkDynamicState _dynamicStates[2] = {
         VK_DYNAMIC_STATE_SCISSOR,

@@ -25,12 +25,29 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
 
     VK_CHECK_EXTENDED(descPool.create(vkapp.data), "Descriptor pool");
    
+
+    renderpass._subpasses.setup(2, 6);
+
     AttachmentContainer att;
+    AttachmentContainer att1;
+
     Attachment* tmp = att.add(); 
-    tmp->desc.format = VK_FORMAT_R8G8B8A8_SRGB; tmp->desc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    tmp->desc.format = VK_FORMAT_R8G8B8A8_SRGB; 
+    tmp->desc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    att.add();
     att.addDepth(); 
+
+    tmp = att1.add();
+    //tmp->desc.format = VK_FORMAT_R8G8B8A8_SRGB;
+    tmp->desc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    att1.add();
+    att1.addDepth();
+
     //att.addResolve();
+
     renderpass._subpasses.add(vkapp.win, vkapp.data, att, nullptr);
+    renderpass._subpasses.add(vkapp.win, vkapp.data, att1, nullptr);
+
     VK_CHECK_EXTENDED(renderpass.create(vkapp.data, vkapp.win), "rndpass");
 
     VK_CHECK_EXTENDED(swpchain.create(vkapp.data, vkapp.win, renderpass), "Failed to create swapchain");
@@ -100,8 +117,21 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
 
     wireframePipeline.rasterState.polygonMode = VK_POLYGON_MODE_LINE; 
 
+    
+    Pipeline subpass1pipeline;
+    subpass1pipeline.fillCrtInfo();
+    subpass1pipeline.crtInfo.stageCount = pipeline.crtInfo.stageCount; 
+    subpass1pipeline.crtInfo.pStages    = stages;
+    subpass1pipeline.crtInfo.renderPass = renderpass.handle;
+    subpass1pipeline.layoutCrtInfo.setLayoutCount = 1;
+    subpass1pipeline.layoutCrtInfo.pSetLayouts    = &descPool._lytHandle;
+    subpass1pipeline.inputAsmState.topology       = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
+    subpass1pipeline.tesState.patchControlPoints  = 4;
+    subpass1pipeline.crtInfo.subpass              = 1;
+
     VK_CHECK_EXTENDED(pipeline.create(vkapp.data), "Failed to create Pipeline");
     VK_CHECK_EXTENDED(wireframePipeline.create(vkapp.data), "Failed to create wireframe pipeline");
+    VK_CHECK_EXTENDED(subpass1pipeline.create(vkapp.data), "Failed to create pipeline");
  
     fragS.dstr();
     vertS.dstr();
@@ -319,11 +349,18 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
         vkCmdBindVertexBuffers(frame.cmdBuff.handle, 0, 1, &vobj.buff.handle, &voff);
         vkCmdBindIndexBuffer(frame.cmdBuff.handle, vobj.indexBuff.handle, voff, VkIndexType::VK_INDEX_TYPE_UINT32);
         vkCmdDraw(frame.cmdBuff.handle, sizeof(strides)/sizeof(strides[0]), 1, 0, 0);
-        //vkCmdDrawIndexed(frame.cmdBuff.handle, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
+        
+        vkCmdNextSubpass(frame.cmdBuff.handle, VkSubpassContents::VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindDescriptorSets(frame.cmdBuff.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1pipeline._layout, 0, 1, &descSet.handle, 0, nullptr);
+        vkCmdBindVertexBuffers(frame.cmdBuff.handle, 0, 1, &vobj.buff.handle, &voff);
+        vkCmdBindIndexBuffer(frame.cmdBuff.handle, vobj.indexBuff.handle, voff, VkIndexType::VK_INDEX_TYPE_UINT32);
+        vkCmdBindPipeline(frame.cmdBuff.handle, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1pipeline.handle);
+        vkCmdDraw(frame.cmdBuff.handle, sizeof(strides)/sizeof(strides[0]), 1, 0, 0);
         vkCmdEndRenderPass(frame.cmdBuff.handle);
 
         frame.end(); 
     }
+        //vkCmdDrawIndexed(frame.cmdBuff.handle, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
 
     frame.dstr();
     vobj.dstr();

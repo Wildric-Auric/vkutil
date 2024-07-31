@@ -36,20 +36,22 @@ VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo() {
     depthState.maxDepthBounds        = 1.0f;
     depthState.stencilTestEnable     = VK_FALSE;
 
-
-    _colBlendAtt.blendEnable  = VK_FALSE;
-    _colBlendAtt.colorWriteMask  = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT; 
-    _colBlendAtt.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-    _colBlendAtt.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-    _colBlendAtt.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    _colBlendAtt.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    _colBlendAtt.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    _colBlendAtt.alphaBlendOp        = VK_BLEND_OP_ADD;
-    _colBlendAtt.colorBlendOp        = VK_BLEND_OP_ADD;
+    VkPipelineColorBlendAttachmentState temp;
+    temp.blendEnable = VK_TRUE;
+    temp.colorWriteMask  = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT; 
+    temp.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    temp.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+    temp.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    temp.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    temp.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    temp.alphaBlendOp        = VK_BLEND_OP_ADD;
+    temp.colorBlendOp        = VK_BLEND_OP_ADD;
+    //TODO::2 is hardcoded for now
+    _colBlendAtt = std::vector<VkPipelineColorBlendAttachmentState>(2, temp);
 
     blendState.logicOpEnable   = VK_FALSE;
-    blendState.attachmentCount = 1;
-    blendState.pAttachments    = &_colBlendAtt;
+    blendState.attachmentCount = _colBlendAtt.size();
+    blendState.pAttachments    = _colBlendAtt.data();
 
     _msaaState.sampleShadingEnable = VK_FALSE;
     _msaaState.rasterizationSamples = (VkSampleCountFlagBits) GfxParams::inst.msaa;
