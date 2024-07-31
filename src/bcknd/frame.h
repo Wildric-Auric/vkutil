@@ -44,9 +44,12 @@ class Subpass {
 
 class SubpassContainer {
     public:
+    void setup(arch subpassNum, arch totalAttNum);
+
     void add(const Window& win, const VulkanData& vkdata, AttachmentContainer& atts, VkSubpassDependency** depedencyWithPrevious);
     void addDepthRes(const Window&, const VulkanData&);
     void addResolveRes(const Window&, const VulkanData&);
+    void addColorRes(const Window&, const VulkanData&);
 
    
     std::vector<VkSubpassDependency>     _dpn;
@@ -56,6 +59,9 @@ class SubpassContainer {
     std::vector<VkAttachmentReference>   attRefs;
 
     std::vector<AttachmentData>          resources;
+
+    arch _ptrSPContainer  = 0;
+    arch _ptrAttContainer = 0;
 };
 
 class Renderpass {
@@ -112,9 +118,14 @@ class Frame {
 
         VkPipelineStageFlags waitDstStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-        VkClearValue clearCol[2] = {
+        VkClearValue clearCol[6] = {
             {1.0f, 0.05f, 0.15f, 1.0f},
-            {1.0, 0.0}
+            {0.0f, 0.05f, 0.55f, 1.0f},
+            {1.0, 0.0},
+
+            {1.0f, 1.05f, 0.15f, 1.0f},
+            {0.0f, 1.05f, 0.55f, 1.0f},
+            {1.0, 0.0},
         };        
 
         VkQueue gfxQueue;
