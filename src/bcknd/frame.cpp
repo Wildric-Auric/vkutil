@@ -4,6 +4,14 @@
 #include "params.h"
 
 
+bool Renderpass::setSwpChainHijack(ui32 subpassIndex, ui32 attIndex) {
+    if (_subpassHjckIndex >= _subpasses.descs.size() || attIndex >= _subpasses._strideInfo[_subpassHjckIndex].colLen) 
+        return 0;
+    _subpassHjckIndex = subpassIndex;
+    _attHjckIndex     = attIndex;
+    return 1;
+}
+
 VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpass rdrpass) {
     VkResult res;
     VkSwapchainCreateInfoKHR crtInfo{};
@@ -76,13 +84,34 @@ VkResult Swapchain::create(const VulkanData& vkdata, const Window& win, Renderpa
         fmbuffs[i].fillCrtInfo();
         fmbuffs[i].crtInfo.width  = crtInfo.imageExtent.width;
         fmbuffs[i].crtInfo.height = crtInfo.imageExtent.height;
-        //TODO::Fix support for multiple Renderpasses
-        std::vector<VkImageView> att;
-        att.push_back(views[i].handle);
 
-        for (auto& data = rdrpass._subpasses.resources.begin(); ++data != rdrpass._subpasses.resources.end();) { 
-            if (data->view.handle)
-                att.push_back(data->view.handle);   
+        std::vector<VkImageView> att;
+
+        for (arch k = 0; k < rdrpass._subpasses.descs.size(); ++k) {
+            AttachmentData* depth = rdrpass._subpasses.getStrideDepth(k);
+            auto colIter = rdrpass._subpasses.getStrideColIterBegin(k, nullptr);
+            auto resIter = rdrpass._subpasses.getStrideColResolveBegin(k, nullptr);
+            arch j = 0;
+            if (resIter != rdrpass._subpasses.resources.end()) {
+                for (;j < rdrpass._subpasses._strideInfo[k].colLen;++j) {
+               
+                    att.push_back((resIter++)->view.handle);
+                }
+            }
+
+            if (colIter != rdrpass._subpasses.resources.end()) {
+                for (j=0;j < rdrpass._subpasses._strideInfo[k].colLen;++j) {
+                    if (rdrpass._subpassHjckIndex == k && rdrpass._attHjckIndex == j)  {
+                        att.push_back(views[i].handle);
+                        ++colIter;
+                        continue;
+                    }
+                    att.push_back((colIter++)->view.handle);
+                }
+            }
+
+            if (depth != nullptr)
+                att.push_back(depth->view.handle);
         }
 
 
@@ -129,16 +158,12 @@ Attachment* AttachmentContainer::getDepth() {
     return &depth;
 }
 
-Attachment* AttachmentContainer::getResolve() {
-    if (_hasResolve) return nullptr;
-    return &resolve;
-}
-
 Attachment* AttachmentContainer::get(arch index) {
     return &_container[index];
 }
 
-Attachment* AttachmentContainer::add() {
+Attachment* AttachmentContainer::add(bool hasResolve) {
+    _hasResolve = hasResolve;
     _container.push_back({});
     Attachment* att = &_container.back();
     att->setup();
@@ -157,29 +182,17 @@ Attachment*  AttachmentContainer::addDepth() {
     return att;
 }
 
-Attachment*  AttachmentContainer::addResolve() {
-    Attachment* att = &resolve;
-    resolve.setup();
-    att->desc.samples     = VK_SAMPLE_COUNT_1_BIT;
-    att->desc.format      = VK_FORMAT_R8G8B8A8_SRGB;
-    att->desc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; 
-    att->desc.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
-    att->ref.layout       = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    _hasResolve = true;
-    return att;
-}
-
-void SubpassContainer::addDepthRes(const Window& win, const VulkanData& _vkdata) {
+void SubpassContainer::addDepthRes(const Window& win, const VulkanData& _vkdata, const VkAttachmentDescription& desc) {
         resources[_ptrAttContainer] = {};
         AttachmentData& depth = resources[_ptrAttContainer];
 
         depth.image.fillCrtInfo();
         depth.image.crtInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
         depth.image.crtInfo.samples       = (VkSampleCountFlagBits)GfxParams::inst.msaa;
-        depth.image.crtInfo.format        = VK_FORMAT_D24_UNORM_S8_UINT;
+        depth.image.crtInfo.format        =  desc.format;
         depth.image.crtInfo.extent.width  =  win.drawArea.x; 
         depth.image.crtInfo.extent.height =  win.drawArea.y;
-        depth.image.crtInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depth.image.crtInfo.initialLayout =  VK_IMAGE_LAYOUT_UNDEFINED;
         depth.image.create(_vkdata);
 
         depth.view.fillCrtInfo(depth.image);
@@ -187,31 +200,15 @@ void SubpassContainer::addDepthRes(const Window& win, const VulkanData& _vkdata)
         depth.view.create(_vkdata);
 }
 
-void SubpassContainer::addResolveRes(const Window& win, const VulkanData& _vkdata) {
-       resources[_ptrAttContainer] = {};
-       AttachmentData& msaaA = resources[_ptrAttContainer];
-
-       msaaA.image.fillCrtInfo();
-       msaaA.image.crtInfo.usage   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-       msaaA.image.crtInfo.samples = (VkSampleCountFlagBits)GfxParams::inst.msaa;
-       msaaA.image.crtInfo.extent.width  = win.drawArea.x;
-       msaaA.image.crtInfo.extent.height = win.drawArea.y;
-       msaaA.image.create(_vkdata);
-
-       msaaA.view.fillCrtInfo(msaaA.image);
-       msaaA.view.crtInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-       msaaA.view.create(_vkdata);
-}
-
-void SubpassContainer::addColorRes(const Window& win, const VulkanData& vkdata) {
+void SubpassContainer::addColorRes(const Window& win, const VulkanData& vkdata, const VkAttachmentDescription& desc) {
       //TODO::Parameter for format
        resources[_ptrAttContainer] = {};
        AttachmentData& color = resources[_ptrAttContainer];
 
        color.image.fillCrtInfo();
-       color.image.crtInfo.format  = VK_FORMAT_R8G8B8A8_UNORM;
+       color.image.crtInfo.format  = desc.format;
        color.image.crtInfo.usage   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-       color.image.crtInfo.samples = (VkSampleCountFlagBits)GfxParams::inst.msaa;
+       color.image.crtInfo.samples = VK_SAMPLE_COUNT_1_BIT; /*(VkSampleCountFlagBits)GfxParams::inst.msaa*/;
        color.image.crtInfo.extent.width  = win.drawArea.x;
        color.image.crtInfo.extent.height = win.drawArea.y;
        color.image.create(vkdata);
@@ -221,12 +218,50 @@ void SubpassContainer::addColorRes(const Window& win, const VulkanData& vkdata) 
        color.view.create(vkdata);
 }
 
+void SubpassContainer::addResolveRes(const Window& win, const VulkanData& vkdata, const VkAttachmentDescription& desc) {
+       resources[_ptrAttContainer] = {};
+       AttachmentData& resolve = resources[_ptrAttContainer];
+       resolve.image.fillCrtInfo();
+       resolve.image.crtInfo.format        = desc.format;
+       resolve.image.crtInfo.usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+       resolve.image.crtInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+       resolve.image.crtInfo.samples       = (VkSampleCountFlagBits)GfxParams::inst.msaa;
+       resolve.image.crtInfo.extent.width  = win.drawArea.x;
+       resolve.image.crtInfo.extent.height = win.drawArea.y;
+       resolve.image.create(vkdata);
+       resolve.view.fillCrtInfo(resolve.image);
+       resolve.view.crtInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+       resolve.view.create(vkdata);
+}
+
 void SubpassContainer::setup(arch subpassNum, arch totalAttNum) {
     _dpn.resize(subpassNum);
 	descs.resize(subpassNum);
+    _strideInfo.resize(subpassNum);
 	attDescs.resize(totalAttNum);
 	attRefs.resize(totalAttNum);
 	resources.resize(totalAttNum);
+}
+
+std::vector<AttachmentData>::iterator SubpassContainer::getStrideColIterBegin(ui32 strideIndex, std::vector<AttachmentData>::iterator* end) {
+    if (strideIndex >= descs.size() || _strideInfo[strideIndex].colOffset == -1) return resources.end();
+    if (end != nullptr) 
+        *end= resources.begin() + _strideInfo[strideIndex].colLen; 
+    return resources.begin() + _strideInfo[strideIndex].colOffset;
+
+}
+std::vector<AttachmentData>::iterator SubpassContainer::getStrideColResolveBegin(ui32 strideIndex, std::vector<AttachmentData>::iterator* end) {
+    i32 base = _strideInfo[strideIndex].colOffset;
+    if (strideIndex >= descs.size() || _strideInfo[strideIndex].localResOffset == -1) return resources.end();
+    if (end != nullptr) 
+        *end= resources.begin() + _strideInfo[strideIndex].localResOffset + base + _strideInfo[strideIndex].colLen; 
+    return resources.begin() + _strideInfo[strideIndex].localResOffset + base;
+}
+
+AttachmentData*  SubpassContainer::getStrideDepth(ui32 strideIndex) {
+    i32 base = _strideInfo[strideIndex].colOffset;
+    if (strideIndex >= descs.size() || _strideInfo[strideIndex].localDepthOffset == -1) return nullptr;
+    return &resources[base + _strideInfo[strideIndex].localDepthOffset];
 }
 
 void SubpassContainer::add(const Window& win, const VulkanData& vkdata, AttachmentContainer& atts, VkSubpassDependency** depedencyWithPrevious) {
@@ -235,39 +270,56 @@ void SubpassContainer::add(const Window& win, const VulkanData& vkdata, Attachme
     ui32 cur = _ptrAttContainer;
     ui32 resOffset  = 0;
     ui32 dpthOffset = 0;
+    StrideData& sInfo = _strideInfo[_ptrSPContainer];
+
+    sInfo.colOffset = beg;
     for (Attachment& att : atts._container) {
         att.ref.attachment = cur++; 
         attDescs[_ptrAttContainer] = att.desc;
         attRefs[_ptrAttContainer]   = att.ref;
-        //TODO::Fix this
-        addColorRes(win, vkdata);
-       /* if (beg != cur-1) {*/
-        //}
+        addColorRes(win, vkdata, att.desc);
         _ptrAttContainer++;
     }
-
-    if (atts._hasResolve) {
+    sInfo.colLen = cur - beg;
+    
+    if (GfxParams::inst.msaa != MSAAvalue::x1) {
+        sInfo.localResOffset = sInfo.colLen;
         resOffset = cur;
-        atts.resolve.ref.attachment = cur++; 
-        attDescs[_ptrAttContainer]  = atts.resolve.desc;
-        attRefs[_ptrAttContainer]   = atts.resolve.ref;
-        addResolveRes(win, vkdata);
-        _ptrAttContainer++;
+        for (Attachment& att : atts._container) {
+           VkAttachmentReference ref{};
+           VkAttachmentDescription desc{};
+           desc.samples       = VK_SAMPLE_COUNT_1_BIT;
+           desc.format        = att.desc.format;
+           desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+           desc.finalLayout   = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; 
+           desc.loadOp        = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+           desc.storeOp       = VK_ATTACHMENT_STORE_OP_STORE;
+           ref.layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+           ref.attachment     = cur++;
+           attDescs[_ptrAttContainer]  = desc;
+           attRefs[_ptrAttContainer]   = ref;
+           addResolveRes(win, vkdata, desc);
+           _ptrAttContainer++;
+        }
     }
 
     if (atts._hasDepth) {
+        sInfo.localDepthOffset = sInfo.colLen + sInfo.colLen * (i32)( sInfo.localResOffset != -1);
         dpthOffset = cur;
         atts.depth.ref.attachment = cur++;
         attDescs[_ptrAttContainer] = atts.depth.desc;
         attRefs[_ptrAttContainer]  = atts.depth.ref;
-        addDepthRes(win, vkdata);
+        addDepthRes(win, vkdata, atts.depth.desc);
         _ptrAttContainer++;
     }
 
+
     s.desc.pColorAttachments       = attRefs.data() + beg;
     s.desc.colorAttachmentCount    = atts._container.size();
-    s.desc.pResolveAttachments     = resOffset == 0 ? nullptr:attRefs.data() + resOffset; //TODO::Chnage when I have multiple resolve attachments
+    s.desc.pResolveAttachments     = resOffset == 0 ? nullptr:attRefs.data() + resOffset; 
     s.desc.pDepthStencilAttachment = dpthOffset == 0? nullptr:attRefs.data() + dpthOffset;
+    s.desc.pInputAttachments       = 0; //TODO::Add input attachment setup
+    s.desc.inputAttachmentCount    = 0;
 
     descs[_ptrSPContainer] = s.desc;
     _dpn[_ptrSPContainer]  = {};
@@ -285,7 +337,7 @@ void SubpassContainer::add(const Window& win, const VulkanData& vkdata, Attachme
         t.srcAccessMask        = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
         t.dstAccessMask        = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     }
-
+  
     else {
         //Default is subpasses wait for previous to finish
         t.srcSubpass           = _ptrSPContainer - 2;
@@ -329,9 +381,7 @@ void Renderpass::dstr() {
 void Renderpass::dstrRes() {
     for (AttachmentData& d : _subpasses.resources) {
         d.view.dstr();
-        d.image.dstr();
-        d.view.crtInfo.format = (VkFormat)0;
-       
+        d.image.dstr();  
     }
 }
 
@@ -343,27 +393,24 @@ void Frame::end() {
         res = vkQueuePresentKHR(preQueue, &preInfo);
         
         if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || _data.win->consumesignal()) {
-            NWin::Vec2 size;
-            _data.win->ptr->getDrawAreaSize(size);
-            _data.win->drawArea.x = size.x;
-            _data.win->drawArea.y = size.y;
-            while (size.x == 0 || size.y == 0) {
-                _data.win->ptr->update();
-                _data.win->ptr->getDrawAreaSize(size);
-                _data.win->drawArea.x = size.x;
-                _data.win->drawArea.y = size.y;
-            }
-            _data.swpchain->dstr();
-            _data.renderpass->dstrRes();
-            //TODO::Finish THIS
-//            _data.renderpass->createRes(*_data.win, _data.renderpass->depth.valid, _data.renderpass->msaaA.valid);
-//            _data.renderpass->depth.image.changeLyt(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, *_data.cmdBuffPool);
-            _data.swpchain->create(_vkdata, *_data.win, *_data.renderpass);
-            rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
+            processSwpchainRec();
         }
  
         _data.win->ptr->_getKeyboard().update();
         _data.win->ptr->update();
+}
+
+void Frame::setup(const FrameData& data) {
+    _data = data;
+    clearCol.clear();
+    for (const auto& res : _data.renderpass->_subpasses.resources) {
+        if (VulkanSupport::isDepthStencil(res.view.crtInfo.format)) {
+            clearCol.push_back({1.0, 0.0});
+        }
+        else {
+            clearCol.push_back({0.0,0.0,0.0,1.0});
+        }
+    }
 }
 
 VkResult Frame::create(const VulkanData& vkdata) {
@@ -409,8 +456,8 @@ VkResult Frame::create(const VulkanData& vkdata) {
     rdrpassInfo.renderArea.offset = {0,0};
     rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
 
-    rdrpassInfo.clearValueCount     = sizeof(clearCol) / sizeof(clearCol[0]);
-    rdrpassInfo.pClearValues        = clearCol;
+    rdrpassInfo.clearValueCount     = clearCol.size();
+    rdrpassInfo.pClearValues        = clearCol.data();
 
     submitInfo.sType =  VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount   = 1;
@@ -450,6 +497,37 @@ void Frame::dstr() {
 
 }
 
+
+void Frame::processSwpchainRec() {
+    NWin::Vec2 size;
+    _data.win->ptr->getDrawAreaSize(size);
+    _data.win->drawArea.x = size.x;
+    _data.win->drawArea.y = size.y;
+    while (size.x == 0 || size.y == 0) {
+        _data.win->ptr->update();
+        _data.win->ptr->getDrawAreaSize(size);
+        _data.win->drawArea.x = size.x;
+        _data.win->drawArea.y = size.y;
+    }
+    _data.swpchain->dstr();
+    _data.renderpass->dstrRes();
+
+    for(int i = 0; i < _data.renderpass->_subpasses.resources.size();++i) {
+        AttachmentData& data = _data.renderpass->_subpasses.resources[i];
+        if (data.view.handle == nullptr) continue;
+        data.image.crtInfo.extent.width  = size.x;
+        data.image.crtInfo.extent.height = size.y;
+        data.image.create(_vkdata);
+        data.view.crtInfo.image = data.image.handle;
+        data.view.create(_vkdata);
+    }
+
+    _data.swpchain->create(_vkdata, *_data.win, *_data.renderpass);
+    rdrpassInfo.renderArea.extent = { (ui32)size.x, (ui32)size.y };
+    _data.win->ptr->_getKeyboard().update();
+    _data.win->ptr->update();
+}
+
 bool Frame::begin() {
         VkResult res;
         Frame& frame = *this;
@@ -458,27 +536,7 @@ bool Frame::begin() {
         res = vkAcquireNextImageKHR(data.dvc, _data.swpchain->handle, UINT64_MAX, frame.semImgAvailable, VK_NULL_HANDLE, &swpIndex);
         //Swapchain recreation
         if (res == VK_ERROR_OUT_OF_DATE_KHR) { 
-            NWin::Vec2 size;
-            _data.win->ptr->getDrawAreaSize(size);
-            _data.win->drawArea.x = size.x;
-            _data.win->drawArea.y = size.y;
-            while (size.x == 0 || size.y == 0) {
-                _data.win->ptr->update();
-                _data.win->ptr->getDrawAreaSize(size);
-                _data.win->drawArea.x = size.x;
-                _data.win->drawArea.y = size.y;
-            }
-
-            _data.swpchain->dstr();
-            _data.renderpass->dstrRes();
-            //TODO::Finish this
-//            _data.renderpass->createRes(*_data.win,  _data.renderpass->depth.valid, _data.renderpass->msaaA.valid);
-//            _data.renderpass->depth.image.changeLyt(
-            //VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, *_data.cmdBuffPool);
-            _data.swpchain->create(data, *_data.win, *_data.renderpass);
-            rdrpassInfo.renderArea.extent = {(ui32)size.x, (ui32)size.y};
-            _data.win->ptr->_getKeyboard().update();
-            _data.win->ptr->update();
+            processSwpchainRec();
             return 0;
         }
         //TODO::RECREATE SWAPCHAIN IF OUT OF DATE

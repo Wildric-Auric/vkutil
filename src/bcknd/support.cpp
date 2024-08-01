@@ -3,6 +3,11 @@
 #include "vulkan/vulkan_core.h"
 
 namespace VulkanSupport {
+    
+    //TODO::Complete and add other functions for fmt check
+    bool isDepthStencil(VkFormat fmt) {
+        return fmt == VK_FORMAT_D24_UNORM_S8_UINT || fmt == VK_FORMAT_D32_SFLOAT_S8_UINT || fmt == VK_FORMAT_D16_UNORM_S8_UINT;
+    }
 
     bool extSupport(const char* ext) {
         ui32 count;

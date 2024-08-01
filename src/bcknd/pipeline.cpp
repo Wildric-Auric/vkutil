@@ -9,7 +9,7 @@ VkResult Pipeline::create(const VulkanData& vkdata) {
     return vkCreateGraphicsPipelines(vkdata.dvc, VK_NULL_HANDLE, 1, &crtInfo, nullptr, &handle); 
 }
 
-VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo() { 
+VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo(arch attNum) { 
     _msaaState.sType     = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     _dynState.sType      = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     vrtxInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -46,8 +46,8 @@ VkGraphicsPipelineCreateInfo& Pipeline::fillCrtInfo() {
     temp.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     temp.alphaBlendOp        = VK_BLEND_OP_ADD;
     temp.colorBlendOp        = VK_BLEND_OP_ADD;
-    //TODO::2 is hardcoded for now
-    _colBlendAtt = std::vector<VkPipelineColorBlendAttachmentState>(2, temp);
+
+    _colBlendAtt = std::vector<VkPipelineColorBlendAttachmentState>(attNum, temp);
 
     blendState.logicOpEnable   = VK_FALSE;
     blendState.attachmentCount = _colBlendAtt.size();

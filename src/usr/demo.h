@@ -26,7 +26,7 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     VK_CHECK_EXTENDED(descPool.create(vkapp.data), "Descriptor pool");
    
 
-    renderpass._subpasses.setup(2, 6);
+    renderpass._subpasses.setup(2, 10);
 
     AttachmentContainer att;
     AttachmentContainer att1;
@@ -38,12 +38,9 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     att.addDepth(); 
 
     tmp = att1.add();
-    //tmp->desc.format = VK_FORMAT_R8G8B8A8_SRGB;
     tmp->desc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     att1.add();
     att1.addDepth();
-
-    //att.addResolve();
 
     renderpass._subpasses.add(vkapp.win, vkapp.data, att, nullptr);
     renderpass._subpasses.add(vkapp.win, vkapp.data, att1, nullptr);
@@ -95,7 +92,7 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
         geomS.stageCrtInfo
     };
 
-    pipeline.fillCrtInfo();
+    pipeline.fillCrtInfo(renderpass._subpasses._strideInfo[0].colLen);
     pipeline.crtInfo.stageCount = sizeof(stages) / sizeof(stages[0]);
     pipeline.crtInfo.pStages    = stages;
     pipeline.crtInfo.renderPass = renderpass.handle;
@@ -106,7 +103,7 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     pipeline.inputAsmState.topology  = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
     pipeline.tesState.patchControlPoints = 4;
 
-    wireframePipeline.fillCrtInfo();
+    wireframePipeline.fillCrtInfo(renderpass._subpasses._strideInfo[0].colLen);
     wireframePipeline.crtInfo.stageCount = pipeline.crtInfo.stageCount; 
     wireframePipeline.crtInfo.pStages    = stages;
     wireframePipeline.crtInfo.renderPass = renderpass.handle;
@@ -119,7 +116,7 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
 
     
     Pipeline subpass1pipeline;
-    subpass1pipeline.fillCrtInfo();
+    subpass1pipeline.fillCrtInfo(renderpass._subpasses._strideInfo[0].colLen);
     subpass1pipeline.crtInfo.stageCount = pipeline.crtInfo.stageCount; 
     subpass1pipeline.crtInfo.pStages    = stages;
     subpass1pipeline.crtInfo.renderPass = renderpass.handle;
@@ -276,10 +273,12 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     vobj.createIndexBuff(vkapp.data, gfxCmdPool, indices, sizeof(indices));
 
     Frame frame;
-    frame._data.win = &vkapp.win;
-    frame._data.swpchain = &swpchain;
-    frame._data.renderpass = &renderpass;
-    frame._data.cmdBuffPool = &gfxCmdPool;
+    FrameData data;
+    data.win = &vkapp.win;
+    data.swpchain = &swpchain;
+    data.renderpass = &renderpass;
+    data.cmdBuffPool = &gfxCmdPool;
+    frame.setup(data);
     frame.create(vkapp.data);
 
     VkResult res;
@@ -292,7 +291,6 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
         }
 
         vkCmdBeginRenderPass(frame.cmdBuff.handle, &frame.rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
-
         Pipeline* ptemp = &pipeline;
         if (vkapp.win.ptr->_getKeyboard().isKeyPressed((NWin::Key)'W')) {
             ptemp = &wireframePipeline;

@@ -20,7 +20,7 @@ namespace VulkanSupport {
         bool valid  = 0;
     };
 
-
+    bool isDepthStencil(VkFormat);
     //Returns a boolean indicating if extension, passed as parameter, is available
     bool extSupport(const char* ext);
     //Returns the index of the last array extension that is not supported,

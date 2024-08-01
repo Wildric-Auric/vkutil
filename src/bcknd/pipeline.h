@@ -20,7 +20,7 @@ class Shader {
 class Pipeline {
     public:
     VkResult create(const VulkanData&);
-    VkGraphicsPipelineCreateInfo& fillCrtInfo();
+    VkGraphicsPipelineCreateInfo& fillCrtInfo(arch attNum);
     void dstr();
 
     VkGraphicsPipelineCreateInfo crtInfo{};
