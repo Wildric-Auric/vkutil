@@ -330,6 +330,15 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
             std::cout << "Subdivions: " << sub;
         }
 
+        static bool fullscreen = 0;
+        if (vkapp.win.ptr->_getKeyboard().onKeyRelease(NWin::Key('F'))) {
+            fullscreen = !fullscreen;
+            if (fullscreen)
+                vkapp.win.ptr->enableFullscreen();
+            else
+                vkapp.win.ptr->disableFullscreen();
+        }
+
         if (vkapp.win.ptr->_getKeyboard().onKeyRelease(NWin::Key::NWIN_KEY_LEFT)) {
             sub -= 1.0;
             if (sub < 1.0)

@@ -22,8 +22,8 @@ workspace "vkUtilExample"
 		"src/**.h",
 		"src/**.hpp",
 		"premake5.lua",
-		"src/**.vert",
-		"src/**.frag",
+		"src/**",
+		"src/**",
         "vendor/nwin/*.cpp",
         "vendor/nwin/*.h"
 	}
