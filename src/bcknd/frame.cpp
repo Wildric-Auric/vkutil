@@ -400,7 +400,7 @@ void Frame::end() {
         _data.win->ptr->update();
 }
 
-void Frame::setup(const FrameData& data) {
+void Frame::setup(const FrameData& data, const fvec4& clrCol) {
     _data = data;
     clearCol.clear();
     for (const auto& res : _data.renderpass->_subpasses.resources) {
@@ -408,7 +408,7 @@ void Frame::setup(const FrameData& data) {
             clearCol.push_back({1.0, 0.0});
         }
         else {
-            clearCol.push_back({0.0,0.0,0.0,1.0});
+            clearCol.push_back({clrCol.x, clrCol.y, clrCol.z, clrCol.w});
         }
     }
 }

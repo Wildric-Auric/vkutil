@@ -114,7 +114,7 @@ struct FrameData {
 
 class Frame {
     public:
-        void         setup(const FrameData&);
+        void         setup(const FrameData& data, const fvec4& clrCol = {1.0f, 0.05f, 0.15f, 1.0f}); 
         VkResult     create(const VulkanData&);
         void         processSwpchainRec();
         void         dstr(); 
