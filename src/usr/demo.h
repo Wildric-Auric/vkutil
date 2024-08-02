@@ -178,7 +178,7 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
 
     //img0.changeLyt(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, gfxCmdPool);
     //-----
-    fvec3   tran = {0.0,0.0,-1.5};
+    fvec3   tran = {0.0,0.0,0.0};
     Matrix4<float> projMat(1);
     Matrix4<float> viewMat(1);
     Matrix4<float> modelMat(1);
@@ -187,10 +187,12 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     TranslateMat(modelMat, tran);
     RotateMat(modelMat, 0.0, {0.0, 1.0, 0.0});
     LookAt(viewMat, {0.3,-1.0,0.0}, tran, {0.0, 1.0, 0.0});
-    Matrix4<float> mvp = projMat * viewMat * modelMat; 
+    //Matrix4<float> mvp = projMat * viewMat * modelMat; 
 
     struct {
-        Matrix4<float> mvpM;
+        Matrix4<float> view;
+        Matrix4<float> model;
+        Matrix4<float> proj;
         float subdiv = 1.0; 
     } unfData;
 
@@ -321,8 +323,11 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
         PerspectiveMat(projMat, 70, 1.0, 0.001, 100.0);
         RotateMat(modelMat, t, { 0.0, 1.0, 0.0 });
         TranslateMat(modelMat, tran);
-        LookAt(viewMat, { 1.0,-1.0,0.0 }, tran, { 0.0, 1.0, 0.0 });
-        unfData.mvpM   = projMat * viewMat * modelMat;
+        LookAt(viewMat, { 0.0,-1.0, 2.0 }, tran, { 0.0, 1.0, 0.0 });
+
+        unfData.view  = viewMat;
+        unfData.proj  = projMat;
+        unfData.model = modelMat;
         
         if (vkapp.win.ptr->_getKeyboard().onKeyRelease(NWin::Key::NWIN_KEY_RIGHT)) {
             sub += 1.0;
