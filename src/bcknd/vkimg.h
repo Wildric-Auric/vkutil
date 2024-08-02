@@ -6,12 +6,15 @@
 #include "buff.h"
 
 
+typedef bool (*lytproc)(VkImageLayout oldlyt, VkImageLayout newlyt, 
+                        VkPipelineStageFlags& srcStage, VkPipelineStageFlags& dstStage, 
+                        VkAccessFlags& srcAccessMask, VkAccessFlags& dstAccessMask) ;
 class Img {
     public:
     VkImageCreateInfo& fillCrtInfo();
     VkResult create(const VulkanData&);
     void dstr();
-    VkResult changeLyt(VkImageLayout newlyt, CmdBufferPool& ); 
+    VkResult changeLyt(VkImageLayout newlyt, CmdBufferPool&, lytproc = nullptr ); 
 
     void     cpyFrom(CmdBufferPool&, Img&    other, const ivec2& size, const ivec2& offset);
 
