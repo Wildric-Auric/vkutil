@@ -320,7 +320,7 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
         projMat = Matrix4<float>(1);
         viewMat = Matrix4<float>(1);
         modelMat = Matrix4<float>(1);
-        PerspectiveMat(projMat, 70, 1.0, 0.001, 100.0);
+        PerspectiveMat(projMat, 60, 1.0, 0.001, 100.0);
         RotateMat(modelMat, t, { 0.0, 1.0, 0.0 });
         TranslateMat(modelMat, tran);
         LookAt(viewMat, { 0.0,-1.0, 2.0 }, tran, { 0.0, 1.0, 0.0 });

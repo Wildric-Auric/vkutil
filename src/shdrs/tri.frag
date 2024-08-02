@@ -10,7 +10,7 @@ layout(location = 1) out vec4 testAtt;
 layout(set = 0, binding = 1) uniform sampler2D uTex;
 
 
-vec3 lightPos = vec3(0., -1.3, 3.5);
+vec3 lightPos = vec3(2., -1.3, 3.5);
 
 void main() {
     float c = 0.7;
