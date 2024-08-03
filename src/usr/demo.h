@@ -278,9 +278,10 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     FrameData data;
     data.win = &vkapp.win;
     data.swpchain = &swpchain;
-    data.renderpass = &renderpass;
     data.cmdBuffPool = &gfxCmdPool;
-    frame.setup(data);
+    data.rdrpass     = &renderpass;
+    frame._data = data;
+    renderpass.fillBeginInfo(vkapp.win, {0.009, 0.001, 0.02 });
     frame.create(vkapp.data);
 
     VkResult res;
@@ -291,8 +292,7 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
         if (!frame.begin()) {
             continue;
         }
-
-        vkCmdBeginRenderPass(frame.cmdBuff.handle, &frame.rdrpassInfo, VK_SUBPASS_CONTENTS_INLINE); //What is third parameter?
+        renderpass.begin(frame.cmdBuff, frame.swpIndex);
         Pipeline* ptemp = &pipeline;
         if (vkapp.win.ptr->_getKeyboard().isKeyPressed((NWin::Key)'W')) {
             ptemp = &wireframePipeline;
@@ -368,7 +368,7 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
         vkCmdBindIndexBuffer(frame.cmdBuff.handle, vobj.indexBuff.handle, voff, VkIndexType::VK_INDEX_TYPE_UINT32);
         vkCmdBindPipeline(frame.cmdBuff.handle, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, subpass1pipeline.handle);
         vkCmdDraw(frame.cmdBuff.handle, sizeof(strides)/sizeof(strides[0]), 1, 0, 0);
-        vkCmdEndRenderPass(frame.cmdBuff.handle);
+        renderpass.end(frame.cmdBuff);
 
         frame.end(); 
     }

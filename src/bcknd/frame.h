@@ -79,13 +79,30 @@ class Renderpass {
 public:
     VkResult create(const VulkanData&, const Window& win);
     bool     setSwpChainHijack(ui32 subpassIndex, ui32 attIndex);
-    void     dstr();
+    VkRenderPassBeginInfo& fillBeginInfo(const Window& win, const fvec4& clrCol = {1.0f, 0.05f, 0.15f, 1.0f}); 
+    void    begin(CmdBuff& cmdbuff, ui32 swpIndex);
+    void    end(CmdBuff& cmdbuff); 
+    void    resize(const ivec2& newsize, const ui32 imgcount);
+    void    resizeFmbuff(const ui32 imgcount);
+    void    resizeRes(const ivec2& newsize);
+    VkResult createFmbuffs(ui32 count);
 
-    void     dstrRes();
+
+    void dstrFmbuffs();
+    void dstrRes();
+    void dstr();
+
 
     VkRenderPass      handle;
     VulkanData       _vkdata;
     SubpassContainer _subpasses;
+
+    VkRenderPassBeginInfo     _rdrpassInfo{};
+    std::vector<VkClearValue> _clearCol = {
+        {1.0f, 0.05f, 0.15f, 1.0f},
+        {1.0, 0.0},
+    };        
+    std::vector<Framebuffer> fmbuffs;
 
     ui32 _subpassHjckIndex = 0;
     ui32 _attHjckIndex     = 0;
@@ -93,7 +110,7 @@ public:
 
 class Swapchain {
     public:
-        VkResult create(const VulkanData& vkdata, const Window& win, Renderpass rdrpass);
+        VkResult create(const VulkanData& vkdata, const Window& win, Renderpass& rdrpass);
         void dstr();
 
         void chooseExtent(const Window& win, const VkSurfaceCapabilitiesKHR& cap, VkExtent2D* const outExt  );
@@ -101,20 +118,18 @@ class Swapchain {
         VkSwapchainKHR handle = nullptr;
         std::vector<VkImage>     imgs;
         std::vector<ImgView>     views;
-        std::vector<Framebuffer> fmbuffs;
         VulkanData     _vkdata;
 };
 
 struct FrameData {
     Window*        win;
-    Renderpass*    renderpass;
     Swapchain*     swpchain;
     CmdBufferPool* cmdBuffPool;
+    Renderpass*    rdrpass;
 };
 
 class Frame {
     public:
-        void         setup(const FrameData& data, const fvec4& clrCol = {1.0f, 0.05f, 0.15f, 1.0f}); 
         VkResult     create(const VulkanData&);
         void         processSwpchainRec();
         void         dstr(); 
@@ -129,16 +144,10 @@ class Frame {
         
         CmdBuff                  cmdBuff; 
         VkCommandBufferBeginInfo beginInfo{};
-        VkRenderPassBeginInfo    rdrpassInfo{};
         VkSubmitInfo             submitInfo{};
         VkPresentInfoKHR         preInfo{};
 
         VkPipelineStageFlags waitDstStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-        std::vector<VkClearValue> clearCol = {
-            {1.0f, 0.05f, 0.15f, 1.0f},
-            {1.0, 0.0},
-        };        
 
         VkQueue gfxQueue;
         VkQueue preQueue;
