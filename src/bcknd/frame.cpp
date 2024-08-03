@@ -456,6 +456,9 @@ VkResult Renderpass::createFmbuffs(ui32 imgCount) {
             if (depth != nullptr)
                 att.push_back(depth->view.handle);
         }
+        fmbuffs[i].fillCrtInfo();
+        fmbuffs[i].crtInfo.width  = _subpasses.resources.front().image.crtInfo.extent.width;
+        fmbuffs[i].crtInfo.height = _subpasses.resources.front().image.crtInfo.extent.height;
         res = fmbuffs[i].create(_vkdata, handle, att.data(), att.size());
     }
     return res;
