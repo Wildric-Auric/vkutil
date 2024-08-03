@@ -14,7 +14,7 @@ workspace "vkUtilExample"
 		"vendor/stb/",
 		"C:/VulkanSDK/1.3.283.0/include/",
 		"src/",
-        "vendor/tiny/",
+        "vendor/LWmath/",
         "vendor/"
 	}
 	files {

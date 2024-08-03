@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Maths.h"
+#include "LWmath.h"
 
 typedef unsigned char uchar;
 

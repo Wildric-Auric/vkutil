@@ -23,7 +23,7 @@ void main() {
     vec3 diffCol = (diff + vec3(0.005)) * vec3(1.0);
     
     vec3 col = diffCol * tex;
-	colorAtt = vec4(col,1.0);
-    testAtt  = vec4(vec3(n.x, -n.y, n.z) * c, 1.0); //Visualize in a gfx debugger 
+	colorAtt = vec4(col * c,1.0);
+    testAtt  = vec4(vec3(n.x, -n.y, n.z), 1.0); //Visualize in a gfx debugger 
 }
 
