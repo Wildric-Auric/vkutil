@@ -100,7 +100,7 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     pipeline.layoutCrtInfo.setLayoutCount = 1;
     pipeline.layoutCrtInfo.pSetLayouts    = &descPool._lytHandle;
     
-    pipeline.inputAsmState.topology  = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
+    pipeline.inputAsmState.topology      = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
     pipeline.tesState.patchControlPoints = 4;
 
     wireframePipeline.fillCrtInfo(renderpass._subpasses._strideInfo[0].colLen);

@@ -4,6 +4,7 @@ CompileFlags:                     # Tweak the parse settings
       "-IC:/Programming/VulkanLib/vendor/stb",
       "-IC:/Programming/VulkanLib/vendor/tiny",
       "-IC:/Programming/VulkanLib/vendor/nwin",
+      "-IC:/Programming/VulkanLib/vendor/lwmath",
       "-IC:/Programming/VulkanLib/src",
       "-IC:/Programming/VulkanLib/vendor",
       "-ferror-limit=0"

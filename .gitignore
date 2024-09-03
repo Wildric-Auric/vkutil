@@ -1,4 +1,5 @@
 build/
-res/
 vendor/
 buildsys/
+res.old/
+.gitignore
