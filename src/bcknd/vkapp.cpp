@@ -6,10 +6,6 @@
 #include "params.h"
 #include <string>
 
-//#include <vulkan/vk_enum_string_helper.h>
-
-
-
 Window* Window::cur = nullptr;
 void Window::rszcallback(NWin::winHandle handle, NWin::Vec2 size) {
     Window::cur->_rszsignal = true; 
