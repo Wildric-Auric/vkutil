@@ -379,6 +379,7 @@ void Renderpass::resizeRes(const ivec2& newsize) {
         if (data.view.handle == nullptr) continue;
         data.image.crtInfo.extent.width  = newsize.x;
         data.image.crtInfo.extent.height = newsize.y;
+        data.image.crtInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         data.image.create(_vkdata);
         data.view.crtInfo.image = data.image.handle;
         data.view.create(_vkdata);
