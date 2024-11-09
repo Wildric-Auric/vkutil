@@ -27,7 +27,6 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
    
 
     renderpassCnt.add()._subpasses.setup(2, 10);
-    renderpassCnt.add()._subpasses.setup(1, 10);
 
     AttachmentContainer att;
     AttachmentContainer att1;
@@ -288,7 +287,6 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     data.rdrpassCnt  = &renderpassCnt;
     frame._data = data;
     renderpassCnt.get().fillBeginInfo(vkapp.win, {0.009, 0.001, 0.02 });
-    renderpassCnt.get(1).fillBeginInfo(vkapp.win, {1.0, 0.001, 0.02 });
     frame.create(vkapp.data);
 
     VkResult res;
