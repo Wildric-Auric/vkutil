@@ -1,3 +1,5 @@
+vkpath = os.getenv("VK_SDK_PATH")
+print(vkpath)
 workspace "vkUtilExample"
 	configurations {"Release", "Debug"}
 	architecture "x64"
@@ -12,7 +14,7 @@ workspace "vkUtilExample"
 	kind "ConsoleApp"
 	includedirs {
 		"vendor/stb/",
-		"C:/VulkanSDK/1.3.283.0/include/",
+		"%{vkpath}/include/",
 		"src/",
         "vendor/LWmath/",
         "vendor/"
@@ -29,7 +31,7 @@ workspace "vkUtilExample"
 	}
 	links {
         "dwmapi.lib",
-		"C:/VulkanSDK/1.3.283.0/Lib/vulkan-1.lib"
+		"%{vkpath}/Lib/vulkan-1.lib"
 	}
 	filter "configurations:Release"
 		optimize "On"
