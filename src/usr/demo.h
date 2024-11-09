@@ -49,18 +49,11 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     VK_CHECK_EXTENDED(renderpassCnt.get().create(vkapp.data, vkapp.win), "rndpass");
 
 
-    //Testing multiple renderpasses 
-    AttachmentContainer att3;
-    tmp = att3.add(); 
-    renderpassCnt.get(1)._subpasses.add(vkapp.win, vkapp.data, att3, nullptr);
-    renderpassCnt.get(1).setSwpChainHijack(-1,-1);
-    VK_CHECK_EXTENDED(renderpassCnt.get(1).create(vkapp.data, vkapp.win), "rndpass2");
     //---------- 
     VK_CHECK_EXTENDED(swpchain.create(vkapp.data, vkapp.win), "Failed to create swapchain");
 
     VK_CHECK_EXTENDED(renderpassCnt.get().createFmbuffs(swpchain), "fmbuffs");
 
-    VK_CHECK_EXTENDED(renderpassCnt.get(1).createFmbuffs(swpchain), "fmbuffs1");
 
     Pipeline      pipeline;
     Pipeline      wireframePipeline; 
@@ -139,21 +132,10 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     subpass1pipeline.tesState.patchControlPoints  = 4;
     subpass1pipeline.crtInfo.subpass              = 1;
 
-    Pipeline pline2;
-    pline2.fillCrtInfo(renderpassCnt.get(1)._subpasses._strideInfo[0].colLen);
-    pline2.crtInfo.stageCount = pipeline.crtInfo.stageCount; 
-    pline2.crtInfo.pStages    = stages;
-    pline2.crtInfo.renderPass = renderpassCnt.get(1).handle;
-    pline2.layoutCrtInfo.setLayoutCount = 1;
-    pline2.layoutCrtInfo.pSetLayouts    = &descPool._lytHandle;
-    pline2.inputAsmState.topology       = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
-    pline2.tesState.patchControlPoints  = 4;
-    pline2.crtInfo.subpass              = 0;
 
     VK_CHECK_EXTENDED(pipeline.create(vkapp.data), "Failed to create Pipeline");
     VK_CHECK_EXTENDED(wireframePipeline.create(vkapp.data), "Failed to create wireframe pipeline");
     VK_CHECK_EXTENDED(subpass1pipeline.create(vkapp.data), "Failed to create pipeline");
-    VK_CHECK_EXTENDED(pline2.create(vkapp.data), "Failed to create pipeline");
  
     fragS.dstr();
     vertS.dstr();
@@ -395,11 +377,6 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
         vkCmdDraw(frame.cmdBuff.handle, sizeof(strides)/sizeof(strides[0]), 1, 0, 0);
         renderpassCnt.get().end(frame.cmdBuff);
 
-        frame.nextRdrpass();
-        renderpassCnt.get(1).begin(frame.cmdBuff, frame.swpIndex);
-        vkCmdBindPipeline(frame.cmdBuff.handle, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pline2.handle);
-        renderpassCnt.get(1).end(frame.cmdBuff);
-
         frame.end(); 
     }
         //vkCmdDrawIndexed(frame.cmdBuff.handle, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
@@ -412,7 +389,6 @@ inline i32 loop(Vkapp& vkapp, bool wireframe = false) {
     img0.dstr();
     view.dstr();
     pipeline.dstr();
-    pline2.dstr();
     wireframePipeline.dstr();
 
     swpchain.dstr(); 
